@@ -144,7 +144,7 @@ class SCMLBone:
 		self.scale_x = self.utilities.float_or_null(attributes.get('scale_x'))
 		self.scale_y = self.utilities.float_or_null(attributes.get('scale_y'))
 		self.angle = self.utilities.float_or_null(attributes.get('angle'))
-		self.alpha = self.utilities.float_or_null(attributes.get('alpha'))
+		self.alpha = self.utilities.float_or_null(attributes.get('a', 1))
 
 
 class SCMLObject:
@@ -171,7 +171,7 @@ class SCMLObject:
 		self.scale_x = self.utilities.float_or_null(attributes.get('scale_x'))
 		self.scale_y = self.utilities.float_or_null(attributes.get('scale_y'))
 		self.angle = self.utilities.float_or_null(attributes.get('angle'))
-		self.alpha = self.utilities.float_or_null(attributes.get('alpha'))
+		self.alpha = self.utilities.float_or_null(attributes.get('a', 1))
 
 
 class SCMLTimelineKey:
@@ -382,13 +382,34 @@ func _add_animation_key(animation: Animation, path: NodePath, time: float, value
 		animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
 	var count = animation.track_get_key_count(track_index)
 	if count > 0 and String(path).ends_with('degrees'):
-		var previous_ease = animation.track_get_key_transition(track_index, count - 1)
-		var previous_value = animation.track_get_key_value(track_index, count - 1)
-		if previous_ease < 0 and value > previous_value:
-			value -= 360
-		elif previous_ease > 0 and previous_value > value:
-			value += 360
-	var key_index = animation.track_insert_key(track_index, time, value, easing)
+		var key_indices = Array(animation.value_track_get_key_indices (track_index, 0, -animation.length))
+		key_indices.sort() # make sure it is sorted
+		var previous_key_idx = key_indices[key_indices.size() - 1]
+		var previous_ease = animation.track_get_key_transition(track_index, previous_key_idx)
+		var previous_value = animation.track_get_key_value(track_index, previous_key_idx)
+		var previous_time = animation.track_get_key_time(track_index, previous_key_idx)
+		assert previous_time < time
+		var input_value = value
+		while previous_ease < 0:
+			if value > previous_value:
+				value -= 360
+			elif value + 360 > previous_value:
+				break
+			else:
+				value += 360
+		while previous_ease > 0:
+			if previous_value > value:
+				value += 360
+			elif value - 360 < previous_value:
+				break
+			else:
+				value -= 360
+		value += 0
+		input_value = 0
+	animation.track_insert_key(track_index, time, value, easing)
+	var key_idx = animation.track_find_key(track_index, time, true)
+	assert animation.track_get_key_transition(track_index, key_idx) == easing
+	assert animation.track_get_key_value(track_index, key_idx) == value
 	return track_index
 
 
@@ -421,10 +442,10 @@ func _process_path(path: String):
 		var animation_player = AnimationPlayer.new()
 		animation_player.name = "AnimationPlayer"
 		skeleton.add_child(animation_player)
+		skeleton.rotation_degrees = -180
 		animation_player.set_owner(imported)
-		
 		var bones = {
-			SCML_NO_PARENT: skeleton
+			'skeleton': skeleton
 		}
 		var objects = {}
 		
@@ -432,39 +453,56 @@ func _process_path(path: String):
 			var bone = Bone2D.new()
 			bone.name = scml_obj_info.name
 			bone.set_default_length(scml_obj_info.width)
-			bones[bones.size() - 1] = bone # -1 to account for skeleton at -1
+			bones[bone.name] = bone
 		
 		for scml_animation in scml_entity.animations.values():
+			if scml_animation.name != "Idle":
+				continue
 			var animation = Animation.new()
 			animation.length = scml_animation.length
-			animation.step = scml_animation.interval
+			animation.step = 0.01
 			animation_player.add_animation(scml_animation.name, animation)
-			
-			for scml_mainline_key in scml_animation.mainline.keys.values():
+			var scml_mainline_key_ids = scml_animation.mainline.keys.keys()
+			scml_mainline_key_ids.sort()
+			for scml_mainline_key_id in scml_mainline_key_ids:
+				var scml_mainline_key = scml_animation.mainline.keys[scml_mainline_key_id]
 				var is_setup = scml_mainline_key.time == 0
+				if not is_setup:
+					# not sure what the further mainlines give us for now
+					break
+					
 				for scml_bone_ref in scml_mainline_key.bone_references.values():
-					var bone = bones[scml_bone_ref.id]
-					var parent = bones[scml_bone_ref.parent]
+					var scml_timeline = scml_animation.timelines[scml_bone_ref.timeline]
+					assert scml_timeline.object_type == 'bone'
+					var bone = bones[scml_timeline.name]
+							
 					if is_setup:
+						var parent = bones['skeleton']
+						if scml_bone_ref.parent > -1:
+							var scml_parent_bone_reference = scml_mainline_key.bone_references[scml_bone_ref.parent]
+							var scml_parent_timeline = scml_animation.timelines[scml_parent_bone_reference.timeline]
+							assert scml_parent_timeline.object_type == 'bone'
+							parent = bones[scml_parent_timeline.name]
 						if bone.get_parent() == null:
 							parent.add_child(bone)
 						else:
 							assert parent == bone.get_parent()
 						bone.set_owner(imported)
 
-					var scml_timeline = scml_animation.timelines[scml_bone_ref.timeline]
-					assert scml_timeline.object_type == 'bone'
-					for scml_timeline_key in scml_timeline.keys.values():
+					var scml_timeline_key_ids = scml_timeline.keys.keys()
+					scml_timeline_key_ids.sort()
+					for scml_timeline_key_id in scml_timeline_key_ids:
+						var scml_timeline_key = scml_timeline.keys[scml_timeline_key_id]
 						for scml_bone in scml_timeline_key.bones:
 							var x = scml_bone.x if scml_bone.x != null else 0
 							var y = scml_bone.y if scml_bone.y != null else 0
 							var angle = scml_bone.angle if scml_bone.angle != null else null
-							var position = Vector2(x, -y)
+#							angle -= 180
+							var position = Vector2(x, y)
 							if is_setup:
 								bone.position = position
 								if scml_bone.angle != null:
 									bone.rotation_degrees = scml_bone.angle
-							
 							
 							var node_path = skeleton.get_path_to(bone)
 							_add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
@@ -473,33 +511,53 @@ func _process_path(path: String):
 				for scml_object_ref in scml_mainline_key.object_references.values():
 					var scml_timeline = scml_animation.timelines[scml_object_ref.timeline]
 					assert scml_timeline.object_type == 'object'
-					for scml_timeline_key in scml_timeline.keys.values():
+					var scml_timeline_key_ids = scml_timeline.keys.keys()
+					scml_timeline_key_ids.sort()
+					for scml_timeline_key_id in scml_timeline_key_ids:
+						var scml_timeline_key = scml_timeline.keys[scml_timeline_key_id]
 						for scml_object in scml_timeline_key.objects:
 							var key = "{folder_id} : {file_id}".format({
 								'folder_id': scml_object.folder, 
 								'file_id': scml_object.file
 							})
 							var object = objects.get(key)
-							var position = Vector2(scml_object.x, -scml_object.y)
+							var position = Vector2(scml_object.x, scml_object.y)
+							var angle = scml_object.angle
+#							angle -= 180
+							var modulate = Color(1, 1, 1, scml_object.alpha)
 							if object == null:
 								object = Sprite.new()
 								object.name = key
 								objects[key] = object
 								object.texture = resources[key]
-								object.offset = Vector2(-object.texture.get_width(), -object.texture.get_height())
+								object.offset = Vector2(0,0)
+#								object.offset = Vector2(-object.texture.get_width(), -object.texture.get_height())
+								object.offset = Vector2(0, -object.texture.get_height())
+#								object.offset = Vector2(-object.texture.get_width(), 0)
+								object.flip_v = true
 								object.z_as_relative = false
 								object.centered = false
-								var parent = bones[scml_object_ref.parent]
+								
+								var parent = bones['skeleton']
+								if scml_object_ref.parent > -1:
+									var scml_parent_bone_reference = scml_mainline_key.bone_references[scml_object_ref.parent]
+									var scml_parent_timeline = scml_animation.timelines[scml_parent_bone_reference.timeline]
+									assert scml_parent_timeline.object_type == 'bone'
+									parent = bones[scml_parent_timeline.name]
+
 								parent.add_child(object)
 								object.set_owner(imported)
 								object.position = position
-								object.rotation_degrees = scml_object.angle
+								object.rotation_degrees = angle
+								object.modulate = modulate
 								
 							object.z_index = scml_object_ref.z_index
 							var node_path = skeleton.get_path_to(object)
 							_add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
-							_add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, scml_object.angle, scml_timeline_key.spin)
-
+							_add_animation_key(animation, String(node_path) + ':modulate', scml_timeline_key.time, modulate, 0)
+							_add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, angle, scml_timeline_key.spin)
+			# TODO : add animation cleanup - if all values on track are the same then
+			# remove all the values but the first one
 		animation_player.current_animation = "Idle"
 	
 	var scene = PackedScene.new()
