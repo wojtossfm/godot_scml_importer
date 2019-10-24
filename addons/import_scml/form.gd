@@ -1,5 +1,11 @@
 extends Control
 
+# TODO: hurt animation shows bugs still present with rotations
+
+# TODO: support texture swapping
+# e.g. blacksmith Face 01/02/03 should all be
+# on the same object texture swaps instead of separate objects
+
 var _thread : Thread = null
 
 
@@ -540,9 +546,7 @@ func _process_path(path: String):
 								object.flip_v = true
 								object.z_as_relative = false
 								object.centered = false
-								# TODO: support texture swapping
-								# e.g. blacksmith Face 01/02/03 should all be
-								# on the same object texture swaps instead of separate objects
+
 								
 								var parent = bones['skeleton']
 								if scml_object_ref.parent > -1:
