@@ -443,6 +443,7 @@ func _process_path(path: String):
 		animation_player.name = "AnimationPlayer"
 		skeleton.add_child(animation_player)
 		skeleton.rotation_degrees = -180
+		skeleton.scale = Vector2(-1, 1)
 		animation_player.set_owner(imported)
 		var bones = {
 			'skeleton': skeleton
@@ -456,8 +457,6 @@ func _process_path(path: String):
 			bones[bone.name] = bone
 		
 		for scml_animation in scml_entity.animations.values():
-			if scml_animation.name != "Idle":
-				continue
 			var animation = Animation.new()
 			animation.length = scml_animation.length
 			animation.step = 0.01
