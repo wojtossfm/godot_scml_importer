@@ -441,6 +441,7 @@ func _process_path(path: String):
 		
 		var animation_player = AnimationPlayer.new()
 		animation_player.name = "AnimationPlayer"
+		animation_player.playback_speed = 3
 		skeleton.add_child(animation_player)
 		skeleton.rotation_degrees = -180
 		skeleton.scale = Vector2(-1, 1)
@@ -458,6 +459,7 @@ func _process_path(path: String):
 		
 		for scml_animation in scml_entity.animations.values():
 			var animation = Animation.new()
+			animation.loop = true
 			animation.length = scml_animation.length
 			animation.step = 0.01
 			animation_player.add_animation(scml_animation.name, animation)
@@ -515,6 +517,7 @@ func _process_path(path: String):
 					for scml_timeline_key_id in scml_timeline_key_ids:
 						var scml_timeline_key = scml_timeline.keys[scml_timeline_key_id]
 						for scml_object in scml_timeline_key.objects:
+							var sml_file = parsed_data.folders[scml_object.folder].files[scml_object.file]
 							var key = "{folder_id} : {file_id}".format({
 								'folder_id': scml_object.folder, 
 								'file_id': scml_object.file
@@ -526,9 +529,10 @@ func _process_path(path: String):
 							var modulate = Color(1, 1, 1, scml_object.alpha)
 							if object == null:
 								object = Sprite.new()
-								object.name = key
+#								object.name = key
 								objects[key] = object
 								object.texture = resources[key]
+								object.name = sml_file.name.get_basename()
 								object.offset = Vector2(0,0)
 #								object.offset = Vector2(-object.texture.get_width(), -object.texture.get_height())
 								object.offset = Vector2(0, -object.texture.get_height())
@@ -536,6 +540,9 @@ func _process_path(path: String):
 								object.flip_v = true
 								object.z_as_relative = false
 								object.centered = false
+								# TODO: support texture swapping
+								# e.g. blacksmith Face 01/02/03 should all be
+								# on the same object texture swaps instead of separate objects
 								
 								var parent = bones['skeleton']
 								if scml_object_ref.parent > -1:
