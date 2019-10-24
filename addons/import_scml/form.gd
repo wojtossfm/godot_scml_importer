@@ -1,7 +1,5 @@
 extends Control
 
-# TODO: hurt animation shows bugs still present with rotations
-
 # TODO: support texture swapping
 # e.g. blacksmith Face 01/02/03 should all be
 # on the same object texture swaps instead of separate objects
@@ -388,9 +386,7 @@ func _add_animation_key(animation: Animation, path: NodePath, time: float, value
 		animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
 	var count = animation.track_get_key_count(track_index)
 	if count > 0 and String(path).ends_with('degrees'):
-		var key_indices = Array(animation.value_track_get_key_indices (track_index, 0, -animation.length))
-		key_indices.sort() # make sure it is sorted
-		var previous_key_idx = key_indices[key_indices.size() - 1]
+		var previous_key_idx = count - 1
 		var previous_ease = animation.track_get_key_transition(track_index, previous_key_idx)
 		var previous_value = animation.track_get_key_value(track_index, previous_key_idx)
 		var previous_time = animation.track_get_key_time(track_index, previous_key_idx)
@@ -399,19 +395,17 @@ func _add_animation_key(animation: Animation, path: NodePath, time: float, value
 		while previous_ease < 0:
 			if value > previous_value:
 				value -= 360
-			elif value + 360 > previous_value:
-				break
-			else:
+			elif (value + 360) <= previous_value:
 				value += 360
+			else:
+				break
 		while previous_ease > 0:
-			if previous_value > value:
+			if value < previous_value:
 				value += 360
-			elif value - 360 < previous_value:
-				break
-			else:
+			elif (value - 360) >= previous_value:
 				value -= 360
-		value += 0
-		input_value = 0
+			else:
+				break
 	animation.track_insert_key(track_index, time, value, easing)
 	var key_idx = animation.track_find_key(track_index, time, true)
 	assert animation.track_get_key_transition(track_index, key_idx) == easing
@@ -464,6 +458,8 @@ func _process_path(path: String):
 			bones[bone.name] = bone
 		
 		for scml_animation in scml_entity.animations.values():
+#			if scml_animation.name != "Idle":
+#				continue
 			var animation = Animation.new()
 			animation.loop = true
 			animation.length = scml_animation.length
