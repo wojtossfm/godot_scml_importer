@@ -173,8 +173,8 @@ class SCMLObject:
 		self.y = self.utilities.float_or_null(attributes.get('y'))
 		self.pivot_x = self.utilities.float_or_null(attributes.get('pivot_x'))
 		self.pivot_y = self.utilities.float_or_null(attributes.get('pivot_y'))
-		self.scale_x = self.utilities.float_or_null(attributes.get('scale_x'))
-		self.scale_y = self.utilities.float_or_null(attributes.get('scale_y'))
+		self.scale_x = self.utilities.float_or_null(attributes.get('scale_x', 1))
+		self.scale_y = self.utilities.float_or_null(attributes.get('scale_y', 1))
 		self.angle = self.utilities.float_or_null(attributes.get('angle'))
 		self.alpha = self.utilities.float_or_null(attributes.get('a', 1))
 
@@ -550,21 +550,20 @@ func _process_path(path: String):
 							var object = objects.get(scml_timeline.id)
 							var position = Vector2(scml_object.x, scml_object.y)
 							var angle = scml_object.angle
-#							angle -= 180
-							var modulate = Color(1, 1, 1, scml_object.alpha)
 							var texture = scml_file.resource
+							var offset = Vector2(-(scml_file.pivot_x) * texture.get_width(), -(scml_file.pivot_y) * texture.get_height())
+							var modulate = Color(1, 1, 1, scml_object.alpha)
+							var scale = Vector2(scml_object.scale_x, scml_object.scale_y)
 							if object == null:
 								object = Sprite.new()
 								objects[scml_timeline.id] = object
 								object.texture = texture
 								object.name = scml_file.name.get_basename()
-								object.offset = Vector2(0,0)
-#								object.offset = Vector2(-object.texture.get_width(), -object.texture.get_height())
-								object.offset = Vector2(0, -object.texture.get_height())
-#								object.offset = Vector2(-object.texture.get_width(), 0)
+								object.offset = offset
 								object.flip_v = true
 								object.z_as_relative = false
 								object.centered = false
+								object.scale = scale
 
 								
 								var parent = bones['skeleton']
@@ -586,6 +585,8 @@ func _process_path(path: String):
 							_add_animation_key(animation, String(node_path) + ':modulate', scml_timeline_key.time, modulate, 0)
 							_add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, angle, scml_timeline_key.spin)
 							_add_animation_key(animation, String(node_path) + ':texture', scml_timeline_key.time, texture, 0)
+							_add_animation_key(animation, String(node_path) + ':offset', scml_timeline_key.time, offset, 0)
+							_add_animation_key(animation, String(node_path) + ':scale', scml_timeline_key.time, scale, 0)
 
 			_optimize_animation(animation)
 
