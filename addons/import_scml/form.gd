@@ -1,8 +1,5 @@
 extends Control
 
-# TODO: support texture swapping
-# e.g. blacksmith Face 01/02/03 should all be
-# on the same object texture swaps instead of separate objects
 
 var _thread : Thread = null
 
@@ -14,6 +11,7 @@ class SCMLFile:
 	var height: int
 	var pivot_x : float
 	var pivot_y : float
+	var resource : StreamTexture
 	
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
@@ -22,6 +20,7 @@ class SCMLFile:
 		self.height = int(attributes["height"])
 		self.pivot_x = float(attributes["pivot_x"])
 		self.pivot_y = float(attributes["pivot_y"])
+		self.resource = null # will be loaded later
 
 
 class SCMLFolder:
@@ -386,12 +385,17 @@ func _add_animation_key(animation: Animation, path: NodePath, time: float, value
 		animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
 	var count = animation.track_get_key_count(track_index)
 	if count > 0 and String(path).ends_with('degrees'):
-		var previous_key_idx = count - 1
-		var previous_ease = animation.track_get_key_transition(track_index, previous_key_idx)
-		var previous_value = animation.track_get_key_value(track_index, previous_key_idx)
-		var previous_time = animation.track_get_key_time(track_index, previous_key_idx)
+		var previous_key_index = count - 1
+		var previous_ease = animation.track_get_key_transition(track_index, previous_key_index)
+		var previous_value = animation.track_get_key_value(track_index, previous_key_index)
+		var previous_time = animation.track_get_key_time(track_index, previous_key_index)
 		assert previous_time < time
 		var input_value = value
+		# not the prettiest thing but only way I could figure out to
+		# adapt the values to adhere to the spin direction. I'm 90% sure
+		# this can be simplified to better work with cases where an
+		# over 360 spin is present but imagine those are rare and
+		# currently not needed by me.
 		while previous_ease < 0:
 			if value > previous_value:
 				value -= 360
@@ -407,10 +411,33 @@ func _add_animation_key(animation: Animation, path: NodePath, time: float, value
 			else:
 				break
 	animation.track_insert_key(track_index, time, value, easing)
-	var key_idx = animation.track_find_key(track_index, time, true)
-	assert animation.track_get_key_transition(track_index, key_idx) == easing
-	assert animation.track_get_key_value(track_index, key_idx) == value
+	var key_index = animation.track_find_key(track_index, time, true)
+	assert animation.track_get_key_transition(track_index, key_index) == easing
+	assert animation.track_get_key_value(track_index, key_index) == value
 	return track_index
+
+
+func _optimize_animation(animation: Animation):
+	for track_index in range(animation.get_track_count()):
+		var to_remove = []
+		var keys = animation.track_get_key_count(track_index)
+		for key_index in range(animation.track_get_key_count(track_index) - 1, 0, -1):
+			var current_transition = animation.track_get_key_transition(track_index, key_index)
+			var current_value = animation.track_get_key_value(track_index, key_index)
+			var previous_transition = animation.track_get_key_transition(track_index, key_index - 1)
+			var previous_value = animation.track_get_key_value(track_index, key_index - 1)
+			
+			var following_transition = current_transition
+			var following_value = current_value
+			if key_index < keys - 1:
+				following_transition = animation.track_get_key_transition(track_index, key_index + 1)
+				following_value = animation.track_get_key_value(track_index, key_index + 1)
+			
+			if current_transition == previous_transition and current_transition == following_transition \
+				and current_value == previous_value and current_value == following_value:
+				to_remove.append(key_index)
+		for key_index in to_remove:
+			animation.track_remove_key(track_index, key_index)
 
 
 func _process_path(path: String):
@@ -429,9 +456,7 @@ func _process_path(path: String):
 		for scml_file in scml_folder.files.values():
 			var key = "{folder_id} : {file_id}".format({'folder_id': scml_folder.id, 'file_id': scml_file.id})
 			var resource = load(path.get_base_dir().plus_file(scml_file.name))
-			resources[key] = resource
-			var sprite = Sprite.new()
-			sprite.texture = resource
+			scml_file.resource = resource
 
 	for scml_entity in parsed_data.entities.values():
 		var skeleton = Skeleton2D.new()
@@ -519,22 +544,18 @@ func _process_path(path: String):
 					for scml_timeline_key_id in scml_timeline_key_ids:
 						var scml_timeline_key = scml_timeline.keys[scml_timeline_key_id]
 						for scml_object in scml_timeline_key.objects:
-							var sml_file = parsed_data.folders[scml_object.folder].files[scml_object.file]
-							var key = "{folder_id} : {file_id}".format({
-								'folder_id': scml_object.folder, 
-								'file_id': scml_object.file
-							})
-							var object = objects.get(key)
+							var scml_file = parsed_data.folders[scml_object.folder].files[scml_object.file]
+							var object = objects.get(scml_timeline.id)
 							var position = Vector2(scml_object.x, scml_object.y)
 							var angle = scml_object.angle
 #							angle -= 180
 							var modulate = Color(1, 1, 1, scml_object.alpha)
+							var texture = scml_file.resource
 							if object == null:
 								object = Sprite.new()
-#								object.name = key
-								objects[key] = object
-								object.texture = resources[key]
-								object.name = sml_file.name.get_basename()
+								objects[scml_timeline.id] = object
+								object.texture = texture
+								object.name = scml_file.name.get_basename()
 								object.offset = Vector2(0,0)
 #								object.offset = Vector2(-object.texture.get_width(), -object.texture.get_height())
 								object.offset = Vector2(0, -object.texture.get_height())
@@ -562,8 +583,10 @@ func _process_path(path: String):
 							_add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
 							_add_animation_key(animation, String(node_path) + ':modulate', scml_timeline_key.time, modulate, 0)
 							_add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, angle, scml_timeline_key.spin)
-			# TODO : add animation cleanup - if all values on track are the same then
-			# remove all the values but the first one
+							_add_animation_key(animation, String(node_path) + ':texture', scml_timeline_key.time, texture, 0)
+
+			_optimize_animation(animation)
+
 		animation_player.current_animation = "Idle"
 	
 	var scene = PackedScene.new()
