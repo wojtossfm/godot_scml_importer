@@ -1,5 +1,7 @@
 extends Control
 
+# Tested against
+# * spriter_data scml_version="1.0" generator="BrashMonkey Spriter" generator_version="r11
 
 var _thread : Thread = null
 
