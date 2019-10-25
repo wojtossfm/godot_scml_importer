@@ -2,9 +2,10 @@ extends Control
 
 # Tested against
 # * spriter_data scml_version="1.0" generator="BrashMonkey Spriter" generator_version="r11
+tool
 
 var _thread : Thread = null
-
+var _imported : Node2D = null
 
 class SCMLFile:
 	var id : int
@@ -450,8 +451,8 @@ func _process_path(path: String):
 		return null
 	
 	var imported = Node2D.new()
+	_imported = imported
 	imported.name = 'Imported'
-	add_child(imported)
 	
 	var resources = {}
 	for scml_folder in parsed_data.folders.values():
@@ -461,8 +462,9 @@ func _process_path(path: String):
 			scml_file.resource = resource
 
 	for scml_entity in parsed_data.entities.values():
+		imported.name = scml_entity.name
 		var skeleton = Skeleton2D.new()
-		skeleton.name = scml_entity.name
+		skeleton.name = "Skeleton"
 		imported.add_child(skeleton)
 		skeleton.set_owner(imported)
 		
@@ -598,10 +600,12 @@ func _process_path(path: String):
 
 func _on_save_file_selected(path: String):
 	var scene = PackedScene.new()
-	# only node and rigid are now packed
-	var result = scene.pack(get_node("Imported"))
+	var result = scene.pack(_imported)
 	if result == OK:
-	    ResourceSaver.save(path, scene) # or user://...
+		result = ResourceSaver.save(path, scene)
+		if result == OK:
+			_imported.queue_free()
+			_imported = null
 
 
 func _on_load_file_selected(path: String):
@@ -619,3 +623,9 @@ func _ready():
 	$SaveDialog.connect("file_selected", self, "_on_save_file_selected")
 	$VBoxContainer/Button.connect("pressed", self, "_on_import_button_pressed")
 #	_process_path("res://BlacksmithGuyParts/Animations.scml")
+
+
+func _enter_tree():
+	$LoadDialog.connect("file_selected", self, "_on_load_file_selected")
+	$SaveDialog.connect("file_selected", self, "_on_save_file_selected")
+	$VBoxContainer/Button.connect("pressed", self, "_on_import_button_pressed")
