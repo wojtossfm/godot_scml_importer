@@ -592,33 +592,21 @@ func _process_path(path: String):
 
 		animation_player.current_animation = "Idle"
 	
-	var scene = PackedScene.new()
-
-	var result = scene.pack(imported)
-	if result == OK:
-		var err = ResourceSaver.save("res://test-{time}.tscn".format({'time': OS.get_system_time_msecs()}), scene) # or user://...
-		print("Save result error:" + str(err))
-	print("Finished processing data. Pack result: " + str(result))
-	
-	$VBoxContainer/LoadingLabel.visible = false;
+	$VBoxContainer/LoadingLabel.visible = false
+	$SaveDialog.popup()
 
 
-func _on_save():
+func _on_save_file_selected(path: String):
 	var scene = PackedScene.new()
 	# only node and rigid are now packed
 	var result = scene.pack(get_node("Imported"))
 	if result == OK:
-	    ResourceSaver.save("res://imported.scn", scene) # or user://...
+	    ResourceSaver.save(path, scene) # or user://...
 
 
-func _on_file_selected(path: String):
-	if _thread != null and _thread.is_active():
-		print("Cannot start loading new SCML while still loading previous SCML")
-		return
-	_thread = Thread.new()
+func _on_load_file_selected(path: String):
 	$VBoxContainer/LoadingLabel.visible = true;
 	_process_path(path)
-#	_thread.start(self, "_process_path", path)
 
 
 func _on_import_button_pressed():
@@ -627,6 +615,7 @@ func _on_import_button_pressed():
 
 # Called when the node enters the scene tree for the first time.
 func _ready():
-	$LoadDialog.connect("file_selected", self, "_on_file_selected")
+	$LoadDialog.connect("file_selected", self, "_on_load_file_selected")
+	$SaveDialog.connect("file_selected", self, "_on_save_file_selected")
 	$VBoxContainer/Button.connect("pressed", self, "_on_import_button_pressed")
-	_process_path("res://BlacksmithGuyParts/Animations.scml")
+#	_process_path("res://BlacksmithGuyParts/Animations.scml")
