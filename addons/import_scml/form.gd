@@ -387,7 +387,7 @@ func _add_animation_key(animation: Animation, path: NodePath, time: float, value
 		animation.value_track_set_update_mode(track_index, Animation.UPDATE_CONTINUOUS)
 		animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
 	var count = animation.track_get_key_count(track_index)
-	if count > 0 and String(path).ends_with('degrees'):
+	if count > 0 and String(path).ends_with(':rotation_degrees'):
 		var previous_key_index = count - 1
 		var previous_ease = animation.track_get_key_transition(track_index, previous_key_index)
 		var previous_value = animation.track_get_key_value(track_index, previous_key_index)
@@ -424,23 +424,80 @@ func _optimize_animation(animation: Animation):
 	for track_index in range(animation.get_track_count()):
 		var to_remove = []
 		var keys = animation.track_get_key_count(track_index)
-		for key_index in range(animation.track_get_key_count(track_index) - 1, 0, -1):
+		for key_index in range(keys - 1, 0, -1):
 			var current_transition = animation.track_get_key_transition(track_index, key_index)
 			var current_value = animation.track_get_key_value(track_index, key_index)
 			var previous_transition = animation.track_get_key_transition(track_index, key_index - 1)
 			var previous_value = animation.track_get_key_value(track_index, key_index - 1)
-			
+
 			var following_transition = current_transition
 			var following_value = current_value
 			if key_index < keys - 1:
 				following_transition = animation.track_get_key_transition(track_index, key_index + 1)
 				following_value = animation.track_get_key_value(track_index, key_index + 1)
-			
+
 			if current_transition == previous_transition and current_transition == following_transition \
 				and current_value == previous_value and current_value == following_value:
 				to_remove.append(key_index)
 		for key_index in to_remove:
 			animation.track_remove_key(track_index, key_index)
+
+
+func _optimize_animations_for_blends(animation_player: AnimationPlayer):
+	var animation_names = animation_player.get_animation_list()
+	for animation_name in animation_names:
+		var animation = animation_player.get_animation(animation_name)
+		for track_index in range(animation.get_track_count()):
+			var path = animation.track_get_path(track_index)
+
+			if not String(path).ends_with(':rotation_degrees'):
+				continue
+
+			var value = animation.track_get_key_value(track_index, 0)
+			var diff = int(value / 360) * 360
+
+			if value - diff < -180: # value/diff are negative
+				diff -= 360
+			elif value - diff > 180: # value/diff are positive
+				diff += 360
+
+			if diff == 0:
+				continue
+
+			for key_index in range(animation.track_get_key_count(track_index)):
+				value = animation.track_get_key_value(track_index, key_index)
+				animation.track_set_key_value(track_index, key_index, value - diff)
+
+	var optimized_tracks = {}
+	for animation_index in range(len(animation_names)):
+		var animation_name = animation_names[animation_index]
+		var animation = animation_player.get_animation(animation_name)
+
+		for track_index in range(animation.get_track_count()):
+			var path = animation.track_get_path(track_index)
+			if optimized_tracks.has(path):
+				continue
+			if String(path).ends_with(':rotation_degrees'):
+				var value = animation.track_get_key_value(track_index, 0)
+				for other_animation_index in range(animation_index + 1, len(animation_names)):
+					var other_animation_name = animation_names[other_animation_index]
+					var other_animation = animation_player.get_animation(other_animation_name)
+					var other_track_index = other_animation.find_track(path)
+					if other_track_index < 0:
+						continue
+					var other_track_value = other_animation.track_get_key_value(other_track_index, 0)
+					var diff = other_track_value - value
+					var other_track_adjust = 0
+					if diff > 180: # other_track_value greater than value
+						other_track_adjust = -360
+					elif diff < -180: # other_track_value samller than value
+						other_track_adjust = 360
+					if other_track_adjust == 0:
+						continue
+					for key_index in range(other_animation.track_get_key_count(other_track_index)):
+						other_track_value = other_animation.track_get_key_value(other_track_index, key_index)
+						other_animation.track_set_key_value(other_track_index, key_index, other_track_value + other_track_adjust)
+			optimized_tracks[path] = 1
 
 
 func _process_path(path: String):
@@ -591,7 +648,8 @@ func _process_path(path: String):
 							_add_animation_key(animation, String(node_path) + ':scale', scml_timeline_key.time, scale, 0)
 
 			_optimize_animation(animation)
-
+		if get_node("VBoxContainer/OptimizeForBlends").pressed:
+			_optimize_animations_for_blends(animation_player)
 		animation_player.current_animation = "Idle"
 	
 	$VBoxContainer/LoadingLabel.visible = false
