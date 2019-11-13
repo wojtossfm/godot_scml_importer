@@ -469,23 +469,32 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 				animation.track_set_key_value(track_index, key_index, value - diff)
 
 	var optimized_tracks = {}
+	var remove_tracks = {}
 	for animation_index in range(len(animation_names)):
 		var animation_name = animation_names[animation_index]
 		var animation = animation_player.get_animation(animation_name)
 
 		for track_index in range(animation.get_track_count()):
 			var path = animation.track_get_path(track_index)
+			var can_remove = animation.track_get_key_count(track_index) < 2
 			if optimized_tracks.has(path):
 				continue
-			if String(path).ends_with(':rotation_degrees'):
-				var value = animation.track_get_key_value(track_index, 0)
-				for other_animation_index in range(animation_index + 1, len(animation_names)):
-					var other_animation_name = animation_names[other_animation_index]
-					var other_animation = animation_player.get_animation(other_animation_name)
-					var other_track_index = other_animation.find_track(path)
-					if other_track_index < 0:
-						continue
-					var other_track_value = other_animation.track_get_key_value(other_track_index, 0)
+			var value = animation.track_get_key_value(track_index, 0)
+			for other_animation_index in range(animation_index + 1, len(animation_names)):
+				var other_animation_name = animation_names[other_animation_index]
+				var other_animation = animation_player.get_animation(other_animation_name)
+				var other_track_index = other_animation.find_track(path)
+				if other_track_index < 0:
+					continue
+				var other_track_value = other_animation.track_get_key_value(other_track_index, 0)
+
+				if other_animation.track_get_key_count(other_track_index) > 1:
+					can_remove = false
+				elif other_track_value != value:
+					print(animation_name, other_animation_name, path, value, other_track_value)
+					can_remove = false
+
+				if String(path).ends_with(':rotation_degrees'):
 					var diff = other_track_value - value
 					var other_track_adjust = 0
 					if diff > 180: # other_track_value greater than value
@@ -497,20 +506,33 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 					for key_index in range(other_animation.track_get_key_count(other_track_index)):
 						other_track_value = other_animation.track_get_key_value(other_track_index, key_index)
 						other_animation.track_set_key_value(other_track_index, key_index, other_track_value + other_track_adjust)
+
+			if can_remove:
+				remove_tracks[path] = 1
+
 			optimized_tracks[path] = 1
+
+	for animation_index in range(len(animation_names)):
+		var animation_name = animation_names[animation_index]
+		var animation = animation_player.get_animation(animation_name)
+		for path in remove_tracks:
+			var track_index = animation.find_track(path)
+			if track_index < 0:
+				continue
+			animation.remove_track(track_index)
 
 
 func _process_path(path: String):
 	print("Processing in thread: ", path)
-	
+
 	var parsed_data = _parse_data(path)
 	if parsed_data == null:
 		return null
-	
+
 	var imported = Node2D.new()
 	_imported = imported
 	imported.name = 'Imported'
-	
+
 	var resources = {}
 	for scml_folder in parsed_data.folders.values():
 		for scml_file in scml_folder.files.values():
