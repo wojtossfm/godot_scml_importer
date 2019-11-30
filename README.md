@@ -13,7 +13,10 @@ I didn't want to need to recreate the animations that I already had.
  * Open and tweak the scene file in any way you want
 
 ## Tested/supported
- * SCML generator version r11
-
+ * Godot
+     * 3.1.1
+ * Spriter SCML generator versions
+     * r11
+ 
 # Not currently supported
  * absolute values as found in e.g. generator version b5.95 that the GreyGuy sample comes with
