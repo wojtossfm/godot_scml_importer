@@ -114,7 +114,7 @@ class SCMLMainline:
 	var keys: Dictionary
 	
 	func from_attributes(attributes: Dictionary):
-		assert attributes.empty()
+		assert(attributes.empty())
 		self.keys = {}
 	
 	func add_key(attributes: Dictionary) -> SCMLMainlineKey:
@@ -244,7 +244,7 @@ class SCMLAnimation:
 	func add_mainline(attributes: Dictionary) -> SCMLMainline:
 		var obj = SCMLMainline.new()
 		obj.from_attributes(attributes)
-		assert self.mainline == null
+		assert(self.mainline == null)
 		self.mainline = obj
 		return obj
 	
@@ -329,43 +329,43 @@ func _parse_data(path: String) -> SCMLData:
 
 			match node_name:
 				"spriter_data":
-					assert parents.size() == 0
+					assert(parents.size() == 0)
 					item = parsed_data
 				"folder":
-					assert parents.size() == 1
+					assert(parents.size() == 1)
 					item = last_parent.add_folder(attributes)
 				"file":
-					assert parents.size() == 2
+					assert(parents.size() == 2)
 					item = last_parent.add_file(attributes)
 				"entity":
-					assert parents.size() == 1
+					assert(parents.size() == 1)
 					item = last_parent.add_entity(attributes)
 				"obj_info":
-					assert parents.size() == 2
+					assert(parents.size() == 2)
 					item = last_parent.add_object_info(attributes)
 				"animation":
-					assert parents.size() == 2
+					assert(parents.size() == 2)
 					item = last_parent.add_animation(attributes)
 				"mainline":
-					assert parents.size() == 3
+					assert(parents.size() == 3)
 					item = last_parent.add_mainline(attributes)
 				"timeline":
-					assert parents.size() == 3
+					assert(parents.size() == 3)
 					item = last_parent.add_timeline(attributes)
 				"key": # same indentation for mainline and timeline
-					assert parents.size() == 4
+					assert(parents.size() == 4)
 					item = last_parent.add_key(attributes)
 				"bone_ref":
-					assert parents.size() == 5
+					assert(parents.size() == 5)
 					item = last_parent.add_bone_reference(attributes)
 				"object_ref":
-					assert parents.size() == 5
+					assert(parents.size() == 5)
 					item = last_parent.add_object_reference(attributes)
 				"object":
-					assert parents.size() == 5
+					assert(parents.size() == 5)
 					item = last_parent.add_object(attributes)
 				"bone":
-					assert parents.size() == 5
+					assert(parents.size() == 5)
 					item = last_parent.add_bone(attributes)
 
 			var has_children = not parser.is_empty()
@@ -392,7 +392,7 @@ func _add_animation_key(animation: Animation, path: NodePath, time: float, value
 		var previous_ease = animation.track_get_key_transition(track_index, previous_key_index)
 		var previous_value = animation.track_get_key_value(track_index, previous_key_index)
 		var previous_time = animation.track_get_key_time(track_index, previous_key_index)
-		assert previous_time < time
+		assert(previous_time < time)
 		var input_value = value
 		# not the prettiest thing but only way I could figure out to
 		# adapt the values to adhere to the spin direction. I'm 90% sure
@@ -415,8 +415,8 @@ func _add_animation_key(animation: Animation, path: NodePath, time: float, value
 				break
 	animation.track_insert_key(track_index, time, value, easing)
 	var key_index = animation.track_find_key(track_index, time, true)
-	assert animation.track_get_key_transition(track_index, key_index) == easing
-	assert animation.track_get_key_value(track_index, key_index) == value
+	assert(animation.track_get_key_transition(track_index, key_index) == easing)
+	assert(animation.track_get_key_value(track_index, key_index) == value)
 	return track_index
 
 
@@ -584,7 +584,7 @@ func _process_path(path: String):
 					
 				for scml_bone_ref in scml_mainline_key.bone_references.values():
 					var scml_timeline = scml_animation.timelines[scml_bone_ref.timeline]
-					assert scml_timeline.object_type == 'bone'
+					assert(scml_timeline.object_type == 'bone')
 					var bone = bones[scml_timeline.name]
 							
 					if is_setup:
@@ -592,12 +592,12 @@ func _process_path(path: String):
 						if scml_bone_ref.parent > -1:
 							var scml_parent_bone_reference = scml_mainline_key.bone_references[scml_bone_ref.parent]
 							var scml_parent_timeline = scml_animation.timelines[scml_parent_bone_reference.timeline]
-							assert scml_parent_timeline.object_type == 'bone'
+							assert(scml_parent_timeline.object_type == 'bone')
 							parent = bones[scml_parent_timeline.name]
 						if bone.get_parent() == null:
 							parent.add_child(bone)
 						else:
-							assert parent == bone.get_parent()
+							assert(parent == bone.get_parent())
 						bone.set_owner(imported)
 
 					var scml_timeline_key_ids = scml_timeline.keys.keys()
@@ -621,7 +621,7 @@ func _process_path(path: String):
 					
 				for scml_object_ref in scml_mainline_key.object_references.values():
 					var scml_timeline = scml_animation.timelines[scml_object_ref.timeline]
-					assert scml_timeline.object_type == 'object'
+					assert(scml_timeline.object_type == 'object')
 					var scml_timeline_key_ids = scml_timeline.keys.keys()
 					scml_timeline_key_ids.sort()
 					for scml_timeline_key_id in scml_timeline_key_ids:
@@ -651,7 +651,7 @@ func _process_path(path: String):
 								if scml_object_ref.parent > -1:
 									var scml_parent_bone_reference = scml_mainline_key.bone_references[scml_object_ref.parent]
 									var scml_parent_timeline = scml_animation.timelines[scml_parent_bone_reference.timeline]
-									assert scml_parent_timeline.object_type == 'bone'
+									assert(scml_parent_timeline.object_type == 'bone')
 									parent = bones[scml_parent_timeline.name]
 
 								parent.add_child(object)
