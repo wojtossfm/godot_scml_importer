@@ -550,6 +550,9 @@ func _process_path(path: String, options: Dictionary):
 		var animation_player = AnimationPlayer.new()
 		animation_player.name = "AnimationPlayer"
 		animation_player.playback_speed = 3
+		if options.set_rest_pose:
+			var set_rest_script: Script = load("res://addons/import_scml/set_rest.gd")
+			animation_player.set_script(set_rest_script)
 		skeleton.add_child(animation_player)
 		skeleton.rotation_degrees = -180
 		skeleton.scale = Vector2(-1, 1)
@@ -714,6 +717,9 @@ func get_import_options(preset):
 		Presets.DEFAULT:
 			return [{
 						"name": "optimize_for_blends",
+						"default_value": false
+					}, {
+						"name": "set_rest_pose",
 						"default_value": false
 					}]
 		_:
