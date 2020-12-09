@@ -1,4 +1,4 @@
-extends Control
+extends EditorImportPlugin
 
 # Tested against
 # * spriter_data scml_version="1.0" generator="BrashMonkey Spriter" generator_version="r11
@@ -522,7 +522,7 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 			animation.remove_track(track_index)
 
 
-func _process_path(path: String):
+func _process_path(path: String, options: Dictionary):
 	print("Processing in thread: ", path)
 
 	var parsed_data = _parse_data(path)
@@ -550,6 +550,9 @@ func _process_path(path: String):
 		var animation_player = AnimationPlayer.new()
 		animation_player.name = "AnimationPlayer"
 		animation_player.playback_speed = 3
+		if options.set_rest_pose:
+			var set_rest_script: Script = load("res://addons/import_scml/set_rest.gd")
+			animation_player.set_script(set_rest_script)
 		skeleton.add_child(animation_player)
 		skeleton.rotation_degrees = -180
 		skeleton.scale = Vector2(-1, 1)
@@ -670,42 +673,61 @@ func _process_path(path: String):
 							_add_animation_key(animation, String(node_path) + ':scale', scml_timeline_key.time, scale, 0)
 
 			_optimize_animation(animation)
-		if get_node("VBoxContainer/OptimizeForBlends").pressed:
+		if options.optimize_for_blends:
 			_optimize_animations_for_blends(animation_player)
-		animation_player.current_animation = "Idle"
-	
-	$VBoxContainer/LoadingLabel.visible = false
-	$SaveDialog.popup()
 
-
-func _on_save_file_selected(path: String):
+func _export_path(path: String):
 	var scene = PackedScene.new()
 	var result = scene.pack(_imported)
 	if result == OK:
-		result = ResourceSaver.save(path, scene)
+		result = ResourceSaver.save("%s.%s" % [path, get_save_extension()], scene)
 		if result == OK:
 			_imported.queue_free()
 			_imported = null
 
+func get_importer_name():
+	return "importer.scml"
 
-func _on_load_file_selected(path: String):
-	$VBoxContainer/LoadingLabel.visible = true;
-	_process_path(path)
+func get_visible_name():
+	return "SCML Importer"
 
+func get_recognized_extensions():
+	return ["scml"]
 
-func _on_import_button_pressed():
-	$LoadDialog.popup()
+func get_save_extension():
+	return "scn"
 
+func get_resource_type():
+	return "PackedScene"
 
-# Called when the node enters the scene tree for the first time.
-func _ready():
-	$LoadDialog.connect("file_selected", self, "_on_load_file_selected")
-	$SaveDialog.connect("file_selected", self, "_on_save_file_selected")
-	$VBoxContainer/Button.connect("pressed", self, "_on_import_button_pressed")
-#	_process_path("res://BlacksmithGuyParts/Animations.scml")
+enum Presets { DEFAULT }
 
+func get_preset_count():
+	return Presets.size()
 
-func _enter_tree():
-	$LoadDialog.connect("file_selected", self, "_on_load_file_selected")
-	$SaveDialog.connect("file_selected", self, "_on_save_file_selected")
-	$VBoxContainer/Button.connect("pressed", self, "_on_import_button_pressed")
+func get_preset_name(preset):
+	match preset:
+		Presets.DEFAULT:
+			return "Default"
+		_:
+			return "Unknown"
+
+func get_import_options(preset):
+	match preset:
+		Presets.DEFAULT:
+			return [{
+						"name": "optimize_for_blends",
+						"default_value": false
+					}, {
+						"name": "set_rest_pose",
+						"default_value": false
+					}]
+		_:
+			return []
+
+func get_option_visibility(option: String, options: Dictionary):
+	return true
+
+func import(source_file: String, save_path: String, options: Dictionary, platform_variants: Array, gen_files: Array):
+	_process_path(source_file, options)
+	_export_path(save_path)
