@@ -7,7 +7,13 @@ tool
 var _thread : Thread = null
 var _imported : Node2D = null
 
+
+class SCMLParsedNode:
+	var _node_name : String
+
+
 class SCMLFile:
+	extends SCMLParsedNode
 	var id : int
 	var name : String
 	var width : int
@@ -27,6 +33,7 @@ class SCMLFile:
 
 
 class SCMLFolder:
+	extends SCMLParsedNode
 	var id : int
 	var files : Dictionary
 	
@@ -42,6 +49,7 @@ class SCMLFolder:
 
 
 class SCMLObjectInfo:
+	extends SCMLParsedNode
 	var name: String
 	var type: String
 	var width : float
@@ -58,6 +66,7 @@ const SCML_NO_PARENT = -1
 
 
 class SCMLBoneReference:
+	extends SCMLParsedNode
 	var id : int
 	var parent : int
 	var timeline : int
@@ -71,6 +80,7 @@ class SCMLBoneReference:
 
 
 class SCMLObjectReference:
+	extends SCMLParsedNode
 	var id : int
 	var parent : int
 	var timeline : int
@@ -86,6 +96,7 @@ class SCMLObjectReference:
 
 
 class SCMLMainlineKey:
+	extends SCMLParsedNode
 	var id: int
 	var time: float
 	var object_references : Dictionary
@@ -111,6 +122,7 @@ class SCMLMainlineKey:
 
 
 class SCMLMainline:
+	extends SCMLParsedNode
 	var keys: Dictionary
 	
 	func from_attributes(attributes: Dictionary):
@@ -131,6 +143,7 @@ class Utilities:
 
 
 class SCMLBone:
+	extends SCMLParsedNode
 	var utilities = Utilities
 	# untyped to support null
 	var x
@@ -154,6 +167,7 @@ class SCMLBone:
 
 
 class SCMLObject:
+	extends SCMLParsedNode
 	var utilities = Utilities
 	var folder: int
 	var file: int
@@ -181,6 +195,7 @@ class SCMLObject:
 
 
 class SCMLTimelineKey:
+	extends SCMLParsedNode
 	var id: int
 	var spin: int
 	var time: float
@@ -208,6 +223,7 @@ class SCMLTimelineKey:
 
 
 class SCMLTimeline:
+	extends SCMLParsedNode
 	var id : int
 	var name : String
 	var object_type : String
@@ -227,6 +243,7 @@ class SCMLTimeline:
 
 
 class SCMLAnimation:
+	extends SCMLParsedNode
 	var id: int
 	var length: float
 	var interval: float
@@ -256,6 +273,7 @@ class SCMLAnimation:
 
 
 class SCMLEntity:
+	extends SCMLParsedNode
 	var id: int
 	var name: String
 	var object_infos : Dictionary
@@ -281,6 +299,7 @@ class SCMLEntity:
 
 
 class SCMLData:
+	extends SCMLParsedNode
 	var folders : Dictionary
 	var entities : Dictionary
 
@@ -331,6 +350,10 @@ func _parse_data(path: String) -> SCMLData:
 				"spriter_data":
 					assert(parents.size() == 0)
 					item = parsed_data
+				"character_map":
+					item = SCMLParsedNode.new()
+				"map":
+					item = SCMLParsedNode.new()
 				"folder":
 					assert(parents.size() == 1)
 					item = last_parent.add_folder(attributes)
@@ -370,9 +393,10 @@ func _parse_data(path: String) -> SCMLData:
 
 			var has_children = not parser.is_empty()
 			if item and has_children:
+				item._node_name = node_name
 				parents.append(item)
 		elif parser.get_node_type() == XMLParser.NODE_ELEMENT_END:
-			parents.pop_back()
+			var popped = parents.pop_back()
 	return parsed_data
 
 
@@ -491,7 +515,6 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 				if other_animation.track_get_key_count(other_track_index) > 1:
 					can_remove = false
 				elif other_track_value != value:
-					print(animation_name, other_animation_name, path, value, other_track_value)
 					can_remove = false
 
 				if String(path).ends_with(':rotation_degrees'):
