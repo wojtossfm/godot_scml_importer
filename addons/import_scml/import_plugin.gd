@@ -569,8 +569,6 @@ func _process_path(path: String, options: Dictionary):
 			bones[bone.name] = bone
 		
 		for scml_animation in scml_entity.animations.values():
-#			if scml_animation.name != "Idle":
-#				continue
 			var animation = Animation.new()
 			animation.loop = true
 			animation.length = scml_animation.length
@@ -578,12 +576,12 @@ func _process_path(path: String, options: Dictionary):
 			animation_player.add_animation(scml_animation.name, animation)
 			var scml_mainline_key_ids = scml_animation.mainline.keys.keys()
 			scml_mainline_key_ids.sort()
+			var is_setup = false
 			for scml_mainline_key_id in scml_mainline_key_ids:
 				var scml_mainline_key = scml_animation.mainline.keys[scml_mainline_key_id]
-				var is_setup = scml_mainline_key.time == 0
-				if not is_setup:
-					# not sure what the further mainlines give us for now
+				if is_setup:
 					break
+				is_setup = true
 					
 				for scml_bone_ref in scml_mainline_key.bone_references.values():
 					var scml_timeline = scml_animation.timelines[scml_bone_ref.timeline]
@@ -635,7 +633,15 @@ func _process_path(path: String, options: Dictionary):
 							var position = Vector2(scml_object.x, scml_object.y)
 							var angle = scml_object.angle
 							var texture = scml_file.resource
-							var offset = Vector2(-(scml_file.pivot_x) * texture.get_width(), -(scml_file.pivot_y) * texture.get_height())
+
+							var pivot_x = scml_object.pivot_x
+							if pivot_x == null:
+								pivot_x = scml_file.pivot_x
+
+							var pivot_y = scml_object.pivot_y
+							if pivot_y == null:
+								pivot_y = scml_file.pivot_y
+							var offset = Vector2(-(pivot_x) * texture.get_width(), -(pivot_y) * texture.get_height())
 							var modulate = Color(1, 1, 1, scml_object.alpha)
 							var scale = Vector2(scml_object.scale_x, scml_object.scale_y)
 							if object == null:
@@ -648,8 +654,6 @@ func _process_path(path: String, options: Dictionary):
 								object.z_as_relative = false
 								object.centered = false
 								object.scale = scale
-
-								
 								var parent = bones['skeleton']
 								if scml_object_ref.parent > -1:
 									var scml_parent_bone_reference = scml_mainline_key.bone_references[scml_object_ref.parent]
@@ -662,7 +666,7 @@ func _process_path(path: String, options: Dictionary):
 								object.position = position
 								object.rotation_degrees = angle
 								object.modulate = modulate
-								
+
 							object.z_index = scml_object_ref.z_index
 							var node_path = skeleton.get_path_to(object)
 							_add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
@@ -717,7 +721,7 @@ func get_import_options(preset):
 		Presets.DEFAULT:
 			return [{
 						"name": "optimize_for_blends",
-						"default_value": false
+						"default_value": true
 					}, {
 						"name": "set_rest_pose",
 						"default_value": false

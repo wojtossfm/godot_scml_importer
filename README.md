@@ -8,9 +8,8 @@ I didn't want to need to recreate the animations that I already had.
  * install plugin
  * enable plugin
  * import scml along with images maintaining the relativity that the SCML expects
- * Find and click the "Import SCML" button
- * Pick where to save the Godot scene file
- * Open and tweak the scene file in any way you want
+ * open the scml file in godot using the FileSystem dock
+ * adjust import settings using the godot import tab (rest pose requires an Idle animation currently)
 
 ## Tested/supported
  * Godot
