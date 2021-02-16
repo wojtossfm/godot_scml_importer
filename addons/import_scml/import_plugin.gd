@@ -583,6 +583,7 @@ func _process_path(path: String, options: Dictionary):
 		var bones = {
 			'skeleton': skeleton
 		}
+		var scales = {skeleton: Vector2.ONE}
 		var objects = {}
 		
 		for scml_obj_info in scml_entity.object_infos.values():
@@ -605,12 +606,12 @@ func _process_path(path: String, options: Dictionary):
 				if is_setup:
 					break
 				is_setup = true
-					
+
 				for scml_bone_ref in scml_mainline_key.bone_references.values():
 					var scml_timeline = scml_animation.timelines[scml_bone_ref.timeline]
 					assert(scml_timeline.object_type == 'bone')
 					var bone = bones[scml_timeline.name]
-							
+
 					if is_setup:
 						var parent = bones['skeleton']
 						if scml_bone_ref.parent > -1:
@@ -631,14 +632,20 @@ func _process_path(path: String, options: Dictionary):
 						for scml_bone in scml_timeline_key.bones:
 							var x = scml_bone.x if scml_bone.x != null else 0
 							var y = scml_bone.y if scml_bone.y != null else 0
+							var scale_x = scml_bone.scale_x if scml_bone.scale_x != null else 1
+							var scale_y = scml_bone.scale_y if scml_bone.scale_y != null else 1
+							var scale = Vector2(scale_x, scale_y)
 							var angle = scml_bone.angle if scml_bone.angle != null else null
 #							angle -= 180
-							var position = Vector2(x, y)
+							var node = bone.get_parent()
+							var parentScale = scales[bone.get_parent()]
+							var position = Vector2(x, y) * parentScale
 							if is_setup:
 								bone.position = position
+								scales[bone] = scale * parentScale
 								if scml_bone.angle != null:
 									bone.rotation_degrees = scml_bone.angle
-							
+
 							var node_path = skeleton.get_path_to(bone)
 							_add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
 							_add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, angle, scml_timeline_key.spin)
@@ -666,7 +673,21 @@ func _process_path(path: String, options: Dictionary):
 								pivot_y = scml_file.pivot_y
 							var offset = Vector2(-(pivot_x) * texture.get_width(), -(pivot_y) * texture.get_height())
 							var modulate = Color(1, 1, 1, scml_object.alpha)
+
+							var parent
+							if scml_object_ref.parent > -1:
+								var scml_parent_bone_reference = scml_mainline_key.bone_references[scml_object_ref.parent]
+								var scml_parent_timeline = scml_animation.timelines[scml_parent_bone_reference.timeline]
+								assert(scml_parent_timeline.object_type == 'bone')
+								parent = bones[scml_parent_timeline.name]
+							else:
+								parent = bones['skeleton']
+
 							var scale = Vector2(scml_object.scale_x, scml_object.scale_y)
+							var parentScale : Vector2 = scales[parent]
+							position *= parentScale
+							scale *= parentScale
+
 							if object == null:
 								object = Sprite.new()
 								objects[scml_timeline.id] = object
@@ -676,19 +697,13 @@ func _process_path(path: String, options: Dictionary):
 								object.flip_v = true
 								object.z_as_relative = false
 								object.centered = false
-								object.scale = scale
-								var parent = bones['skeleton']
-								if scml_object_ref.parent > -1:
-									var scml_parent_bone_reference = scml_mainline_key.bone_references[scml_object_ref.parent]
-									var scml_parent_timeline = scml_animation.timelines[scml_parent_bone_reference.timeline]
-									assert(scml_parent_timeline.object_type == 'bone')
-									parent = bones[scml_parent_timeline.name]
 
 								parent.add_child(object)
 								object.set_owner(imported)
 								object.position = position
 								object.rotation_degrees = angle
 								object.modulate = modulate
+								object.scale = scale
 
 							object.z_index = scml_object_ref.z_index
 							var node_path = skeleton.get_path_to(object)
