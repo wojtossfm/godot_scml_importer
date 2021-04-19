@@ -7,6 +7,9 @@ tool
 var _thread : Thread = null
 var _imported : Node2D = null
 
+const REPARENTING_INSTANCING = 'instance per parent'
+const REPARENTING_REMOTE_TRANSFORM = 'remote transform'
+
 
 class SCMLParsedNode:
 	var _node_name : String
@@ -64,8 +67,7 @@ class SCMLObjectInfo:
 
 const SCML_NO_PARENT = -1
 
-
-class SCMLBoneReference:
+class SCMLReference:
 	extends SCMLParsedNode
 	var id : int
 	var parent : int
@@ -79,12 +81,12 @@ class SCMLBoneReference:
 		self.key = int(attributes["key"])
 
 
+class SCMLBoneReference:
+	extends SCMLReference
+
+
 class SCMLObjectReference:
-	extends SCMLParsedNode
-	var id : int
-	var parent : int
-	var timeline : int
-	var key : int
+	extends SCMLReference
 	var z_index : int
 	
 	func from_attributes(attributes: Dictionary):
@@ -101,38 +103,44 @@ class SCMLMainlineKey:
 	var time: float
 	var object_references : Dictionary
 	var bone_references : Dictionary
+	var children: Array
 	
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
 		self.time = float(attributes.get("time", 0)) / 100
 		self.object_references = {}
 		self.bone_references = {}
+		self.children = []
 	
 	func add_bone_reference(attributes: Dictionary) -> SCMLBoneReference:
 		var obj = SCMLBoneReference.new()
 		obj.from_attributes(attributes)
 		self.bone_references[obj.id] = obj
+		self.children.append(obj)
 		return obj
 	
 	func add_object_reference(attributes: Dictionary) -> SCMLObjectReference:
 		var obj = SCMLObjectReference.new()
 		obj.from_attributes(attributes)
 		self.object_references[obj.id] = obj
+		self.children.append(obj)
 		return obj
 
 
 class SCMLMainline:
 	extends SCMLParsedNode
 	var keys: Dictionary
-	
+	var children: Array
 	func from_attributes(attributes: Dictionary):
 		assert(attributes.empty())
 		self.keys = {}
+		self.children = []
 	
 	func add_key(attributes: Dictionary) -> SCMLMainlineKey:
 		var obj = SCMLMainlineKey.new()
 		obj.from_attributes(attributes)
 		self.keys[obj.id] = obj
+		self.children.append(obj)
 		return obj
 
 
@@ -142,10 +150,9 @@ class Utilities:
 		return float(value) if value != null else value
 
 
-class SCMLBone:
+class SCML2DNode:
 	extends SCMLParsedNode
 	var utilities = Utilities
-	# untyped to support null
 	var x
 	var y
 	var pivot_x
@@ -166,32 +173,19 @@ class SCMLBone:
 		self.alpha = self.utilities.float_or_null(attributes.get('a', 1))
 
 
+class SCMLBone:
+	extends SCML2DNode
+
+
 class SCMLObject:
-	extends SCMLParsedNode
-	var utilities = Utilities
+	extends SCML2DNode
 	var folder: int
 	var file: int
-	# untyped to support null
-	var x
-	var y
-	var pivot_x
-	var pivot_y
-	var scale_x
-	var scale_y
-	var angle
-	var alpha
 	
 	func from_attributes(attributes: Dictionary):
 		self.folder = int(attributes["folder"])
 		self.file = int(attributes["file"])
-		self.x = self.utilities.float_or_null(attributes.get('x'))
-		self.y = self.utilities.float_or_null(attributes.get('y'))
-		self.pivot_x = self.utilities.float_or_null(attributes.get('pivot_x'))
-		self.pivot_y = self.utilities.float_or_null(attributes.get('pivot_y'))
-		self.scale_x = self.utilities.float_or_null(attributes.get('scale_x', 1))
-		self.scale_y = self.utilities.float_or_null(attributes.get('scale_y', 1))
-		self.angle = self.utilities.float_or_null(attributes.get('angle'))
-		self.alpha = self.utilities.float_or_null(attributes.get('a', 1))
+		.from_attributes(attributes)
 
 
 class SCMLTimelineKey:
@@ -201,6 +195,7 @@ class SCMLTimelineKey:
 	var time: float
 	var objects : Array
 	var bones : Array
+	var children : Array
 	
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
@@ -208,17 +203,20 @@ class SCMLTimelineKey:
 		self.time = float(attributes.get("time", 0)) / 100
 		self.objects = []
 		self.bones = []
+		self.children = []
 	
 	func add_object(attributes: Dictionary) -> SCMLObject:
 		var obj = SCMLObject.new()
 		obj.from_attributes(attributes)
 		self.objects.append(obj)
+		self.children.append(obj)
 		return obj
 	
 	func add_bone(attributes: Dictionary) -> SCMLBone:
 		var obj = SCMLBone.new()
 		obj.from_attributes(attributes)
 		self.bones.append(obj)
+		self.children.append(obj)
 		return obj
 
 
@@ -228,17 +226,20 @@ class SCMLTimeline:
 	var name : String
 	var object_type : String
 	var keys: Dictionary
+	var children: Array
 	
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
 		self.name = attributes["name"]
 		self.object_type = attributes.get("object_type", 'object')
 		self.keys = {}
+		self.children = []
 	
 	func add_key(attributes: Dictionary) -> SCMLTimelineKey:
 		var obj = SCMLTimelineKey.new()
 		obj.from_attributes(attributes)
 		self.keys[obj.id] = obj
+		self.children.append(obj)
 		return obj
 
 
@@ -400,6 +401,15 @@ func _parse_data(path: String) -> SCMLData:
 	return parsed_data
 
 
+func _add_animation_set_parent(animation: Animation, player_path, obj_path, parent_path):
+	var	track_index = animation.add_track(Animation.TYPE_METHOD)
+	animation.track_set_path(track_index, player_path)
+	assert(animation.track_get_key_count(track_index) == 0)
+	var arguments: Array = [obj_path, parent_path]
+	animation.track_insert_key(track_index, 0, {'method': '_ensure_parent', 'args': arguments})
+	#assert(animation.method_track_get_params(track_index, 0).size() == 2)
+
+
 func _add_animation_key(animation: Animation, path: NodePath, time: float, value, spin):
 	if value == null:
 		return
@@ -545,6 +555,139 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 			animation.remove_track(track_index)
 
 
+func _create_bones(scml_entity: SCMLEntity, skeleton):
+	var bones: Dictionary = {
+		'skeleton': skeleton
+	}
+	for scml_obj_info in scml_entity.object_infos.values():
+		var bone = Bone2D.new()
+		bone.name = scml_obj_info.name
+		bone.set_default_length(scml_obj_info.width)
+		bones[bone.name] = bone
+	return bones
+
+
+class Entity:
+	var _imported: Node2D
+	var _scml_entity: SCMLEntity
+	var _skeleton: Skeleton2D
+	var _animation_player: AnimationPlayer
+	var _options: Dictionary
+	var _bones: Dictionary
+	var _scales: Dictionary
+	var _parent_counts: Dictionary
+	var _reference_ids: Dictionary
+	var _instances: Dictionary
+
+	func _init(imported: Node2D, scml_entity: SCMLEntity, options):
+		self._imported = imported
+		self._scml_entity = scml_entity
+		self._imported.name = scml_entity.name
+		self._skeleton = Skeleton2D.new()
+		self._skeleton.name = "Skeleton"
+		self._imported.add_child(self._skeleton)
+		self._skeleton.set_owner(self._imported)
+		self._options = options
+
+		self._animation_player = AnimationPlayer.new()
+		self._animation_player.name = "AnimationPlayer"
+		self._animation_player.playback_speed = self._options.playback_speed
+		self._skeleton.add_child(self._animation_player)
+		self._animation_player.set_owner(self._imported)
+		self._skeleton.rotation_degrees = -180
+		self._skeleton.scale = Vector2(-1, 1)
+		self._bones = {'skeleton': self._skeleton}
+		self._scales = {self._skeleton: Vector2.ONE}
+		self._parent_counts = self._calculate_parent_counts()
+		self._reference_ids = {}
+		self._instances = {}
+
+	func _get_timeline_child_id(scml_timeline: SCMLTimeline, child: SCML2DNode):
+		var id = []
+		if scml_timeline.object_type == 'bone':
+			id.append(scml_timeline.name)
+		else:
+			id.append(child.folder)
+			id.append(child.file)
+		id.append(scml_timeline.object_type)
+		return id
+
+	func _is_multi_parent(id: Array) -> bool:
+		return self._parent_counts[id] > 1
+
+	func _get_reference_id(scml_reference: SCMLReference, scml_timeline: SCMLTimeline, child: SCML2DNode) -> Array:
+		var id = self._get_timeline_child_id(scml_timeline, child)
+		var is_multi_parent = self._is_multi_parent(id)
+		id.append(scml_reference.parent)
+		id.append(is_multi_parent)
+		return id
+
+	func _calculate_parent_counts() -> Dictionary:
+		var parents = {self._skeleton: {}}
+		for scml_animation_key in self._scml_entity.animations.keys():
+			var scml_animation: SCMLAnimation = self._scml_entity.animations[scml_animation_key]
+			for scml_mainline_key_t in scml_animation.mainline.children:
+				var scml_mainline_key: SCMLMainlineKey = scml_mainline_key_t
+				for scml_reference in scml_mainline_key.children:
+					var scml_timeline: SCMLTimeline = scml_animation.timelines[scml_reference.timeline]
+					for scml_timeline_key_t in scml_timeline.children:
+						var scml_timeline_key: SCMLTimelineKey = scml_timeline_key_t
+						for child in scml_timeline_key.children:
+							var id = self._get_timeline_child_id(scml_timeline, child)
+							var parent_dict = parents.get(id, {})
+							parent_dict[scml_reference.parent] = 1
+							parents[id] = parent_dict
+		var parent_counts = {}
+		for item_id in parents:
+			parent_counts[item_id] = len(parents[item_id])
+		return parent_counts
+
+	func set_parent(animation: Animation, scml_mainline_key: SCMLMainlineKey, scml_animation: SCMLAnimation, scml_reference: SCMLReference, scml_timeline: SCMLTimeline, scml_child: SCML2DNode, child: Node2D):
+		var id = self._get_reference_id(scml_reference, scml_timeline, scml_child)
+		var parent
+		if scml_reference.parent < 0:
+			parent = self._skeleton
+		else:
+			var scml_parent_reference = scml_mainline_key.bone_references[scml_reference.parent]
+			var scml_parent_timeline = scml_animation.timelines[scml_parent_reference.timeline]
+			assert(scml_parent_timeline.object_type == 'bone')
+			# Expected to be a bone so null as the 3rd argument should be fine
+			parent = self.get_instance(scml_parent_reference, scml_parent_timeline, null)
+		var is_multi_parent = id.back()
+		if is_multi_parent:
+			pass
+		else:
+			if child.get_parent() == null:
+				parent.add_child(child)
+				child.set_owner(self._imported)
+			else:
+				assert(parent == child.get_parent())
+		return parent
+
+	func get_instance(scml_reference: SCMLReference, scml_timeline: SCMLTimeline, scml_child: SCML2DNode):
+		var id = self._get_reference_id(scml_reference, scml_timeline, scml_child)
+		var instance: Node2D = self._instances.get(id)
+		if instance == null:
+			if scml_reference is SCMLBoneReference:
+				instance = Bone2D.new()
+				if scml_child is SCMLBone:
+					var scml_obj_info: SCMLObjectInfo = self._scml_entity.object_infos[scml_timeline.name]
+					instance.set_default_length(scml_obj_info.width)
+			else:
+				instance = Sprite.new()
+			self._instances[id] = instance
+			instance.name = scml_timeline.name
+		return instance
+
+	func create_animation(scml_animation: SCMLAnimation) -> Animation:
+		var animation = Animation.new()
+		animation.loop = self._options.loop_animations
+		animation.length = scml_animation.length
+		animation.step = 0.01
+		self._animation_player.add_animation(scml_animation.name, animation)
+		return animation
+
+
 func _process_path(path: String, options: Dictionary):
 	print("Processing in thread: ", path)
 
@@ -564,159 +707,85 @@ func _process_path(path: String, options: Dictionary):
 			scml_file.resource = resource
 
 	for scml_entity in parsed_data.entities.values():
-		imported.name = scml_entity.name
-		var skeleton = Skeleton2D.new()
-		skeleton.name = "Skeleton"
-		imported.add_child(skeleton)
-		skeleton.set_owner(imported)
-		
-		var animation_player = AnimationPlayer.new()
-		animation_player.name = "AnimationPlayer"
-		animation_player.playback_speed = 3
-		if options.set_rest_pose:
-			var set_rest_script: Script = load("res://addons/import_scml/set_rest.gd")
-			animation_player.set_script(set_rest_script)
-		skeleton.add_child(animation_player)
-		skeleton.rotation_degrees = -180
-		skeleton.scale = Vector2(-1, 1)
-		animation_player.set_owner(imported)
-		var bones = {
-			'skeleton': skeleton
-		}
-		var scales = {skeleton: Vector2.ONE}
-		var objects = {}
-		
-		for scml_obj_info in scml_entity.object_infos.values():
-			var bone = Bone2D.new()
-			bone.name = scml_obj_info.name
-			bone.set_default_length(scml_obj_info.width)
-			bones[bone.name] = bone
-		
-		for scml_animation in scml_entity.animations.values():
-			var animation = Animation.new()
-			animation.loop = true
-			animation.length = scml_animation.length
-			animation.step = 0.01
-			animation_player.add_animation(scml_animation.name, animation)
-			var scml_mainline_key_ids = scml_animation.mainline.keys.keys()
-			scml_mainline_key_ids.sort()
-			var is_setup = false
-			for scml_mainline_key_id in scml_mainline_key_ids:
-				var scml_mainline_key = scml_animation.mainline.keys[scml_mainline_key_id]
-				if is_setup:
-					break
-				is_setup = true
+		var entity = Entity.new(imported, scml_entity, options)
+		var rest_pose_src = options.rest_pose_animation
+		for scml_animation_t in scml_entity.animations.values():
+			var scml_animation: SCMLAnimation = scml_animation_t
+			if not rest_pose_src:
+				rest_pose_src = scml_animation.name
+			var should_set_rest_pose = rest_pose_src == scml_animation.name
+			if should_set_rest_pose:
+				prints("Using", rest_pose_src, "as rest pose source")
+			var animation = entity.create_animation(scml_animation)
+			var processed_keys = {}
+			for scml_mainline_key_t in scml_animation.mainline.children:
+				var scml_mainline_key: SCMLMainlineKey = scml_mainline_key_t
+				for scml_reference_t in scml_mainline_key.children:
+					var texture = null
+					var offset: Vector2 = Vector2.ZERO
+					var scml_reference: SCMLReference = scml_reference_t
+					var scml_timeline: SCMLTimeline = scml_animation.timelines[scml_reference.timeline]
+					var scml_timeline_key: SCMLTimelineKey = scml_timeline.keys[scml_reference.key]
 
-				for scml_bone_ref in scml_mainline_key.bone_references.values():
-					var scml_timeline = scml_animation.timelines[scml_bone_ref.timeline]
-					assert(scml_timeline.object_type == 'bone')
-					var bone = bones[scml_timeline.name]
+					# multiple mainline keys can reference the same timeline/key combo
+					# lets avoid re-processing them in the same animation
+					var processing_key = [scml_timeline.id, scml_timeline_key.id]
+					if processed_keys.get(processing_key):
+						continue
+					processed_keys[processing_key] = true
 
-					if is_setup:
-						var parent = bones['skeleton']
-						if scml_bone_ref.parent > -1:
-							var scml_parent_bone_reference = scml_mainline_key.bone_references[scml_bone_ref.parent]
-							var scml_parent_timeline = scml_animation.timelines[scml_parent_bone_reference.timeline]
-							assert(scml_parent_timeline.object_type == 'bone')
-							parent = bones[scml_parent_timeline.name]
-						if bone.get_parent() == null:
-							parent.add_child(bone)
+					for scml_child_t in scml_timeline_key.children:
+						var scml_child: SCML2DNode = scml_child_t
+						var child_id = entity.get_instance_id()
+						var child: Node2D = entity.get_instance(scml_reference, scml_timeline, scml_child)
+						var parent = entity.set_parent(animation, scml_mainline_key, scml_animation, scml_reference, scml_timeline, scml_child, child)
+						var x = scml_child.x if scml_child.x != null else 0
+						var y = scml_child.y if scml_child.y != null else 0
+						var scale_x = scml_child.scale_x if scml_child.scale_x != null else 1
+						var scale_y = scml_child.scale_y if scml_child.scale_y != null else 1
+						var scale = Vector2(scale_x, scale_y)
+						var angle = scml_child.angle if scml_child.angle != null else null
+						var parentScale = Vector2.ONE
+#						var parentScale = entity._scales[child.get_parent()]
+						var position = Vector2(x, y) * parentScale
+						var modulate = Color(1, 1, 1, scml_child.alpha)
+						child.position = position
+						if child is Bone2D and scml_child is SCMLBone:
+							if should_set_rest_pose:
+								child.rest = child.transform
+							entity._scales[child] = scale * parentScale
 						else:
-							assert(parent == bone.get_parent())
-						bone.set_owner(imported)
+							var scml_file = parsed_data.folders[scml_child.folder].files[scml_child.file]
+							var pivot_x = scml_child.pivot_x if scml_child.pivot_x != null else scml_file.pivot_x
+							var pivot_y = scml_child.pivot_y if scml_child.pivot_y != null else scml_file.pivot_y
+							texture = scml_file.resource
+							offset = Vector2(-(pivot_x) * texture.get_width(), -(pivot_y) * texture.get_height())
+							child.z_index = scml_reference.z_index
+							child.texture = texture
+							child.name = scml_file.name.get_basename()
+							child.offset = offset
+							child.flip_v = true
+							child.z_as_relative = false
+							child.centered = false
 
-					var scml_timeline_key_ids = scml_timeline.keys.keys()
-					scml_timeline_key_ids.sort()
-					for scml_timeline_key_id in scml_timeline_key_ids:
-						var scml_timeline_key = scml_timeline.keys[scml_timeline_key_id]
-						for scml_bone in scml_timeline_key.bones:
-							var x = scml_bone.x if scml_bone.x != null else 0
-							var y = scml_bone.y if scml_bone.y != null else 0
-							var scale_x = scml_bone.scale_x if scml_bone.scale_x != null else 1
-							var scale_y = scml_bone.scale_y if scml_bone.scale_y != null else 1
-							var scale = Vector2(scale_x, scale_y)
-							var angle = scml_bone.angle if scml_bone.angle != null else null
-#							angle -= 180
-							var node = bone.get_parent()
-							var parentScale = scales[bone.get_parent()]
-							var position = Vector2(x, y) * parentScale
-							if is_setup:
-								bone.position = position
-								scales[bone] = scale * parentScale
-								if scml_bone.angle != null:
-									bone.rotation_degrees = scml_bone.angle
+						child.rotation_degrees = angle
+						child.modulate = modulate
+						child.scale = scale
 
-							var node_path = skeleton.get_path_to(bone)
-							_add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
-							_add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, angle, scml_timeline_key.spin)
-					
-				for scml_object_ref in scml_mainline_key.object_references.values():
-					var scml_timeline = scml_animation.timelines[scml_object_ref.timeline]
-					assert(scml_timeline.object_type == 'object')
-					var scml_timeline_key_ids = scml_timeline.keys.keys()
-					scml_timeline_key_ids.sort()
-					for scml_timeline_key_id in scml_timeline_key_ids:
-						var scml_timeline_key = scml_timeline.keys[scml_timeline_key_id]
-						for scml_object in scml_timeline_key.objects:
-							var scml_file = parsed_data.folders[scml_object.folder].files[scml_object.file]
-							var object = objects.get(scml_timeline.id)
-							var position = Vector2(scml_object.x, scml_object.y)
-							var angle = scml_object.angle
-							var texture = scml_file.resource
-
-							var pivot_x = scml_object.pivot_x
-							if pivot_x == null:
-								pivot_x = scml_file.pivot_x
-
-							var pivot_y = scml_object.pivot_y
-							if pivot_y == null:
-								pivot_y = scml_file.pivot_y
-							var offset = Vector2(-(pivot_x) * texture.get_width(), -(pivot_y) * texture.get_height())
-							var modulate = Color(1, 1, 1, scml_object.alpha)
-
-							var parent
-							if scml_object_ref.parent > -1:
-								var scml_parent_bone_reference = scml_mainline_key.bone_references[scml_object_ref.parent]
-								var scml_parent_timeline = scml_animation.timelines[scml_parent_bone_reference.timeline]
-								assert(scml_parent_timeline.object_type == 'bone')
-								parent = bones[scml_parent_timeline.name]
-							else:
-								parent = bones['skeleton']
-
-							var scale = Vector2(scml_object.scale_x, scml_object.scale_y)
-							var parentScale : Vector2 = scales[parent]
-							position *= parentScale
-							scale *= parentScale
-
-							if object == null:
-								object = Sprite.new()
-								objects[scml_timeline.id] = object
-								object.texture = texture
-								object.name = scml_file.name.get_basename()
-								object.offset = offset
-								object.flip_v = true
-								object.z_as_relative = false
-								object.centered = false
-
-								parent.add_child(object)
-								object.set_owner(imported)
-								object.position = position
-								object.rotation_degrees = angle
-								object.modulate = modulate
-								object.scale = scale
-
-							object.z_index = scml_object_ref.z_index
-							var node_path = skeleton.get_path_to(object)
-							_add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
-							_add_animation_key(animation, String(node_path) + ':modulate', scml_timeline_key.time, modulate, 0)
-							_add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, angle, scml_timeline_key.spin)
+						if angle != null:
+							child.rotation_degrees = angle
+						var node_path = entity._skeleton.get_path_to(child)
+						_add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
+						_add_animation_key(animation, String(node_path) + ':modulate', scml_timeline_key.time, modulate, 0)
+						_add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, angle, scml_timeline_key.spin)
+						if child is Sprite:
 							_add_animation_key(animation, String(node_path) + ':texture', scml_timeline_key.time, texture, 0)
 							_add_animation_key(animation, String(node_path) + ':offset', scml_timeline_key.time, offset, 0)
 							_add_animation_key(animation, String(node_path) + ':scale', scml_timeline_key.time, scale, 0)
 
 			_optimize_animation(animation)
 		if options.optimize_for_blends:
-			_optimize_animations_for_blends(animation_player)
+			_optimize_animations_for_blends(entity._animation_player)
 
 func _export_path(path: String):
 	var scene = PackedScene.new()
@@ -758,11 +827,24 @@ func get_import_options(preset):
 	match preset:
 		Presets.DEFAULT:
 			return [{
+						"name": "playback_speed",
+						"default_value": 3,
+						"property_hint": PROPERTY_HINT_RANGE,
+						"hint_string": "0,10,or_greater"
+					},{
+						"name": "loop_animations",
+						"default_value": true
+					},{
 						"name": "optimize_for_blends",
 						"default_value": true
 					}, {
-						"name": "set_rest_pose",
-						"default_value": false
+						"name": "rest_pose_animation",
+						"default_value": ""
+					}, {
+						"name": "reparenting_solution",
+						"default_value": REPARENTING_INSTANCING,
+						"property_hint": PROPERTY_HINT_ENUM,
+						"hint_string": REPARENTING_INSTANCING + ',' + REPARENTING_REMOTE_TRANSFORM,
 					}]
 		_:
 			return []
