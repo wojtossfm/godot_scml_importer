@@ -602,22 +602,20 @@ class Entity:
 		self._reference_ids = {}
 		self._instances = {}
 
-	func _get_timeline_child_id(scml_timeline: SCMLTimeline, child: SCML2DNode):
+	func _get_timeline_child_id(scml_timeline: SCMLTimeline):
 		var id = []
 		if scml_timeline.object_type == 'bone':
 			id.append(scml_timeline.name)
 		else:
 			id.append(scml_timeline.name)
-#			id.append(child.folder)
-#			id.append(child.file)
 		id.append(scml_timeline.object_type)
 		return id
 
 	func _is_multi_parent(id: Array) -> bool:
 		return self._parent_counts[id] > 1
 
-	func _get_reference_id(scml_reference: SCMLReference, scml_timeline: SCMLTimeline, child: SCML2DNode) -> Array:
-		var id = self._get_timeline_child_id(scml_timeline, child)
+	func _get_reference_id(scml_reference: SCMLReference, scml_timeline: SCMLTimeline) -> Array:
+		var id = self._get_timeline_child_id(scml_timeline)
 		var is_multi_parent = self._is_multi_parent(id)
 		id.append(scml_reference.parent)
 		id.append(is_multi_parent)
@@ -634,7 +632,7 @@ class Entity:
 					for scml_timeline_key_t in scml_timeline.children:
 						var scml_timeline_key: SCMLTimelineKey = scml_timeline_key_t
 						for child in scml_timeline_key.children:
-							var id = self._get_timeline_child_id(scml_timeline, child)
+							var id = self._get_timeline_child_id(scml_timeline)
 							var parent_dict = parents.get(id, {})
 							parent_dict[scml_reference.parent] = 1
 							parents[id] = parent_dict
@@ -643,8 +641,8 @@ class Entity:
 			parent_counts[item_id] = len(parents[item_id])
 		return parent_counts
 
-	func set_parent(animation: Animation, scml_mainline_key: SCMLMainlineKey, scml_animation: SCMLAnimation, scml_reference: SCMLReference, scml_timeline: SCMLTimeline, scml_child: SCML2DNode, child: Node2D):
-		var id = self._get_reference_id(scml_reference, scml_timeline, scml_child)
+	func set_parent(animation: Animation, scml_mainline_key: SCMLMainlineKey, scml_animation: SCMLAnimation, scml_reference: SCMLReference, scml_timeline: SCMLTimeline, child: Node2D):
+		var id = self._get_reference_id(scml_reference, scml_timeline)
 		var parent
 		if scml_reference.parent < 0:
 			parent = self._skeleton
@@ -652,8 +650,7 @@ class Entity:
 			var scml_parent_reference = scml_mainline_key.bone_references[scml_reference.parent]
 			var scml_parent_timeline = scml_animation.timelines[scml_parent_reference.timeline]
 			assert(scml_parent_timeline.object_type == 'bone')
-			# Expected to be a bone so null as the 3rd argument should be fine
-			parent = self.get_instance(scml_parent_reference, scml_parent_timeline, null)
+			parent = self.get_instance(scml_parent_reference, scml_parent_timeline)
 		var is_multi_parent = id.back()
 		if is_multi_parent and false: # disable this branch for now
 			assert(false, "Bla")
@@ -665,15 +662,14 @@ class Entity:
 				assert(parent == child.get_parent())
 		return parent
 
-	func get_instance(scml_reference: SCMLReference, scml_timeline: SCMLTimeline, scml_child: SCML2DNode):
-		var id = self._get_reference_id(scml_reference, scml_timeline, scml_child)
+	func get_instance(scml_reference: SCMLReference, scml_timeline: SCMLTimeline):
+		var id = self._get_reference_id(scml_reference, scml_timeline)
 		var instance: Node2D = self._instances.get(id)
 		if instance == null:
 			if scml_reference is SCMLBoneReference:
 				instance = Bone2D.new()
-				if scml_child is SCMLBone:
-					var scml_obj_info: SCMLObjectInfo = self._scml_entity.object_infos[scml_timeline.name]
-					instance.set_default_length(scml_obj_info.width)
+				var scml_obj_info: SCMLObjectInfo = self._scml_entity.object_infos[scml_timeline.name]
+				instance.set_default_length(scml_obj_info.width)
 			else:
 				instance = Sprite.new()
 			self._instances[id] = instance
@@ -737,8 +733,8 @@ func _process_path(path: String, options: Dictionary):
 					for scml_child_t in scml_timeline_key.children:
 						var scml_child: SCML2DNode = scml_child_t
 						var child_id = entity.get_instance_id()
-						var child: Node2D = entity.get_instance(scml_reference, scml_timeline, scml_child)
-						var parent = entity.set_parent(animation, scml_mainline_key, scml_animation, scml_reference, scml_timeline, scml_child, child)
+						var child: Node2D = entity.get_instance(scml_reference, scml_timeline)
+						var parent = entity.set_parent(animation, scml_mainline_key, scml_animation, scml_reference, scml_timeline, child)
 						var x = scml_child.x if scml_child.x != null else 0
 						var y = scml_child.y if scml_child.y != null else 0
 						var scale_x = scml_child.scale_x if scml_child.scale_x != null else 1
