@@ -607,8 +607,9 @@ class Entity:
 		if scml_timeline.object_type == 'bone':
 			id.append(scml_timeline.name)
 		else:
-			id.append(child.folder)
-			id.append(child.file)
+			id.append(scml_timeline.name)
+#			id.append(child.folder)
+#			id.append(child.file)
 		id.append(scml_timeline.object_type)
 		return id
 
@@ -654,8 +655,8 @@ class Entity:
 			# Expected to be a bone so null as the 3rd argument should be fine
 			parent = self.get_instance(scml_parent_reference, scml_parent_timeline, null)
 		var is_multi_parent = id.back()
-		if is_multi_parent:
-			pass
+		if is_multi_parent and false: # disable this branch for now
+			assert(false, "Bla")
 		else:
 			if child.get_parent() == null:
 				parent.add_child(child)
@@ -721,7 +722,6 @@ func _process_path(path: String, options: Dictionary):
 			for scml_mainline_key_t in scml_animation.mainline.children:
 				var scml_mainline_key: SCMLMainlineKey = scml_mainline_key_t
 				for scml_reference_t in scml_mainline_key.children:
-					var texture = null
 					var offset: Vector2 = Vector2.ZERO
 					var scml_reference: SCMLReference = scml_reference_t
 					var scml_timeline: SCMLTimeline = scml_animation.timelines[scml_reference.timeline]
@@ -743,17 +743,18 @@ func _process_path(path: String, options: Dictionary):
 						var y = scml_child.y if scml_child.y != null else 0
 						var scale_x = scml_child.scale_x if scml_child.scale_x != null else 1
 						var scale_y = scml_child.scale_y if scml_child.scale_y != null else 1
-						var scale = Vector2(scale_x, scale_y)
 						var angle = scml_child.angle if scml_child.angle != null else null
-						var parentScale = Vector2.ONE
-#						var parentScale = entity._scales[child.get_parent()]
+						var parentScale = entity._scales[child.get_parent()]
+						var scale = Vector2(scale_x, scale_y) * parentScale
 						var position = Vector2(x, y) * parentScale
 						var modulate = Color(1, 1, 1, scml_child.alpha)
+						var texture = null
 						child.position = position
 						if child is Bone2D and scml_child is SCMLBone:
 							if should_set_rest_pose:
 								child.rest = child.transform
-							entity._scales[child] = scale * parentScale
+							entity._scales[child] = scale
+							child.scale = Vector2.ONE
 						else:
 							var scml_file = parsed_data.folders[scml_child.folder].files[scml_child.file]
 							var pivot_x = scml_child.pivot_x if scml_child.pivot_x != null else scml_file.pivot_x
@@ -762,15 +763,14 @@ func _process_path(path: String, options: Dictionary):
 							offset = Vector2(-(pivot_x) * texture.get_width(), -(pivot_y) * texture.get_height())
 							child.z_index = scml_reference.z_index
 							child.texture = texture
-							child.name = scml_file.name.get_basename()
 							child.offset = offset
 							child.flip_v = true
 							child.z_as_relative = false
 							child.centered = false
+							child.scale = scale
 
 						child.rotation_degrees = angle
 						child.modulate = modulate
-						child.scale = scale
 
 						if angle != null:
 							child.rotation_degrees = angle
