@@ -380,11 +380,11 @@ func _parse_data(path: String) -> SCMLData:
 					item = last_parent.add_object_info(attributes)
 				"frames":
 					# ignore i/frames when they appear in obj_info
-					item = 1
+					item = SCMLParsedNode.new()
 					assert(parents.size() == 3)
 				"i":
 					# ignore i/frames when they appear in obj_info
-					item = 1
+					item = SCMLParsedNode.new()
 					assert(parents.size() == 4)
 				"animation":
 					assert(parents.size() == 2)
