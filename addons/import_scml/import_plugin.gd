@@ -58,10 +58,14 @@ class SCMLObjectInfo:
 	var height : float
 
 	func from_attributes(attributes: Dictionary):
-		self.name = attributes["name"]
+		var name = attributes.get("realname")
+		if name == null:
+			name = attributes["name"]
+		self.name = name
 		self.type = attributes["type"]
-		self.width = float(attributes["w"])
-		self.height = float(attributes["h"])
+		if self.type == "bone":
+			self.width = float(attributes["w"])
+			self.height = float(attributes["h"])
 
 
 const SCML_NO_PARENT = -1
@@ -374,6 +378,14 @@ func _parse_data(path: String) -> SCMLData:
 				"obj_info":
 					assert(parents.size() == 2)
 					item = last_parent.add_object_info(attributes)
+				"frames":
+					# ignore i/frames when they appear in obj_info
+					item = SCMLParsedNode.new()
+					assert(parents.size() == 3)
+				"i":
+					# ignore i/frames when they appear in obj_info
+					item = SCMLParsedNode.new()
+					assert(parents.size() == 4)
 				"animation":
 					assert(parents.size() == 2)
 					item = last_parent.add_animation(attributes)
