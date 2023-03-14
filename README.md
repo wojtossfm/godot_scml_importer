@@ -13,7 +13,8 @@ I didn't want to need to recreate the animations that I already had.
 
 ## Tested/supported
  * Godot
-     * 3.1.1
+     * 3.1.1 (< 0.8.0)
+     * 4.0 (0.8.0)
  * Spriter SCML generator versions
      * r11
  
