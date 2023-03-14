@@ -1,8 +1,8 @@
+@tool
 extends EditorImportPlugin
 
 # Tested against
 # * spriter_data scml_version="1.0" generator="BrashMonkey Spriter" generator_version="r11
-tool
 
 var _thread : Thread = null
 var _imported : Node2D = null
@@ -22,7 +22,7 @@ class SCMLFile:
 	var height: int
 	var pivot_x : float
 	var pivot_y : float
-	var resource : StreamTexture
+	var resource : CompressedTexture2D
 
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
@@ -134,7 +134,7 @@ class SCMLMainlineKey:
 
 	func sorted_children():
 		var sorted = self.children.duplicate()
-		sorted.sort_custom(self, "_sort_by_parent")
+		sorted.sort_custom(Callable(self, "_sort_by_parent"))
 		return sorted
 
 
@@ -143,7 +143,7 @@ class SCMLMainline:
 	var keys: Dictionary
 	var children: Array
 	func from_attributes(attributes: Dictionary):
-		assert(attributes.empty())
+		assert(attributes.is_empty())
 		self.keys = {}
 		self.children = []
 
@@ -196,7 +196,7 @@ class SCMLObject:
 	func from_attributes(attributes: Dictionary):
 		self.folder = int(attributes["folder"])
 		self.file = int(attributes["file"])
-		.from_attributes(attributes)
+		super(attributes)
 
 
 class SCMLTimelineKey:
@@ -483,7 +483,7 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 			for other_animation_index in range(animation_index + 1, len(animation_names)):
 				var other_animation_name = animation_names[other_animation_index]
 				var other_animation = animation_player.get_animation(other_animation_name)
-				var other_track_index = other_animation.find_track(path)
+				var other_track_index = other_animation.find_track(path, Animation.TYPE_VALUE)
 				if other_track_index < 0:
 					continue
 				var other_track_value = other_animation.track_get_key_value(other_track_index, 0)
@@ -515,7 +515,7 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 		var animation_name = animation_names[animation_index]
 		var animation = animation_player.get_animation(animation_name)
 		for path in remove_tracks:
-			var track_index = animation.find_track(path)
+			var track_index = animation.find_track(path, Animation.TYPE_VALUE)
 			if track_index < 0:
 				continue
 			animation.remove_track(track_index)
@@ -558,7 +558,7 @@ class Entity:
 
 		self._animation_player = AnimationPlayer.new()
 		self._animation_player.name = "AnimationPlayer"
-		self._animation_player.playback_speed = self._options.playback_speed
+		self._animation_player.speed_scale = self._options.playback_speed
 		self._skeleton.add_child(self._animation_player)
 		self._animation_player.set_owner(self._imported)
 		self._skeleton.rotation_degrees = -180
@@ -573,7 +573,7 @@ class Entity:
 		self._rest_pose_animation = animation
 
 	func get_animation_value(animation: Animation, node_path: NodePath, default):
-		var track_index = animation.find_track(node_path)
+		var track_index = animation.find_track(node_path, Animation.TYPE_VALUE)
 		var value
 		if track_index >= 0 and animation.track_get_key_count(track_index) > 0:
 			value = animation.track_get_key_value(track_index, 0)
@@ -596,7 +596,7 @@ class Entity:
 				instance.position = position
 				instance.modulate = modulate
 				instance.rotation_degrees = rotation_degrees
-				if instance is Sprite:
+				if instance is Sprite2D:
 					var texture: Texture = self.get_animation_value(animation, String(node_path) + ':texture', instance.texture)
 					var offset: Vector2 = self.get_animation_value(animation, String(node_path) + ':offset', instance.offset)
 					var scale: Vector2 = self.get_animation_value(animation, String(node_path) + ':scale', instance.scale)
@@ -614,7 +614,7 @@ class Entity:
 				break
 			current_reference = scml_mainline_key.bone_references[current_reference.parent]
 		assert(path_to_skeleton.size() > 0)
-		path_to_skeleton.invert()
+		path_to_skeleton.reverse()
 		return path_to_skeleton
 
 	func get_instances_other(path: Array):
@@ -626,7 +626,7 @@ class Entity:
 		return instances
 
 	func get_instance(path: Array) -> Node2D:
-		var name = "" if path.empty() else path.back()
+		var name = "" if path.is_empty() else path.back()
 		var instance = self._instances_per_name[name][path]
 		return instance
 
@@ -660,9 +660,9 @@ class Entity:
 							instance = Bone2D.new()
 							var scml_timeline = scml_animation.timelines[scml_reference.timeline]
 							var scml_obj_info: SCMLObjectInfo = self._scml_entity.object_infos[scml_timeline.name]
-							instance.set_default_length(scml_obj_info.width)
+							instance.set_length(scml_obj_info.width)
 						else:
-							instance = Sprite.new()
+							instance = Sprite2D.new()
 						instance.z_as_relative = self._options.z_as_relative
 						collection[path] = instance
 						instance.name = name
@@ -673,17 +673,21 @@ class Entity:
 
 	func create_animation(scml_animation: SCMLAnimation) -> Animation:
 		var animation = Animation.new()
-		animation.loop = self._options.loop_animations
+		animation.loop_mode = self._options.loop_animations
 		animation.length = scml_animation.length
 		animation.step = 0.01
-		self._animation_player.add_animation(scml_animation.name, animation)
+		
+		var library = AnimationLibrary.new()
+		library.add_animation(scml_animation.name, animation)
+		
+		self._animation_player.add_animation_library(scml_animation.name, library)
 		return animation
 
 	func add_animation_key(animation: Animation, path: NodePath, time: float, value, spin):
 		if value == null:
 			return
 		var easing = 1 if spin == 0 else -1
-		var track_index = animation.find_track(path)
+		var track_index = animation.find_track(path,Animation.TYPE_VALUE)
 		if track_index < 0:
 			track_index = animation.add_track(Animation.TYPE_VALUE)
 			animation.track_set_path(track_index, path)
@@ -717,7 +721,7 @@ class Entity:
 				else:
 					break
 		animation.track_insert_key(track_index, time, value, easing)
-		var key_index = animation.track_find_key(track_index, time, true)
+		var key_index = animation.track_find_key(track_index, time, Animation.FIND_MODE_EXACT)
 		assert(animation.track_get_key_transition(track_index, key_index) == easing)
 		assert(animation.track_get_key_value(track_index, key_index) == value)
 		return track_index
@@ -738,7 +742,7 @@ func _process_path(path: String, options: Dictionary):
 	for scml_folder in parsed_data.folders.values():
 		for scml_file in scml_folder.files.values():
 			var key = "{folder_id} : {file_id}".format({'folder_id': scml_folder.id, 'file_id': scml_file.id})
-			var resource = load(path.get_base_dir().plus_file(scml_file.name))
+			var resource = load(path.get_base_dir().path_join(scml_file.name))
 			scml_file.resource = resource
 
 	for scml_entity in parsed_data.entities.values():
@@ -746,7 +750,7 @@ func _process_path(path: String, options: Dictionary):
 		var rest_pose_src = options.rest_pose_animation
 		for scml_animation_t in scml_entity.animations.values():
 			var scml_animation: SCMLAnimation = scml_animation_t
-			if not rest_pose_src:
+			if rest_pose_src.is_empty():
 				rest_pose_src = scml_animation.name
 			var should_set_rest_pose = rest_pose_src == scml_animation.name
 			if should_set_rest_pose:
@@ -819,7 +823,7 @@ func _process_path(path: String, options: Dictionary):
 						entity.add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
 						entity.add_animation_key(animation, String(node_path) + ':modulate', scml_timeline_key.time, modulate, 0)
 						entity.add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, angle, scml_timeline_key.spin)
-						if child is Sprite:
+						if child is Sprite2D:
 							entity.add_animation_key(animation, String(node_path) + ':texture', scml_timeline_key.time, texture, 0)
 							entity.add_animation_key(animation, String(node_path) + ':offset', scml_timeline_key.time, offset, 0)
 							entity.add_animation_key(animation, String(node_path) + ':scale', scml_timeline_key.time, scale, 0)
@@ -840,39 +844,39 @@ func _export_path(path: String):
 	var scene = PackedScene.new()
 	var result = scene.pack(_imported)
 	if result == OK:
-		result = ResourceSaver.save("%s.%s" % [path, get_save_extension()], scene)
+		result = ResourceSaver.save(scene, "%s.%s" % [path, _get_save_extension()])
 		if result == OK:
 			_imported.queue_free()
 			_imported = null
 
-func get_importer_name():
+func _get_importer_name():
 	return "importer.scml"
 
-func get_visible_name():
+func _get_visible_name():
 	return "SCML Importer"
 
-func get_recognized_extensions():
+func _get_recognized_extensions():
 	return ["scml"]
 
-func get_save_extension():
+func _get_save_extension():
 	return "scn"
 
-func get_resource_type():
+func _get_resource_type():
 	return "PackedScene"
 
 enum Presets { DEFAULT }
 
-func get_preset_count():
+func _get_preset_count():
 	return Presets.size()
 
-func get_preset_name(preset):
+func _get_preset_name(preset):
 	match preset:
 		Presets.DEFAULT:
 			return "Default"
 		_:
 			return "Unknown"
 
-func get_import_options(preset):
+func _get_import_options(path, preset):
 	match preset:
 		Presets.DEFAULT:
 			return [{
@@ -901,9 +905,15 @@ func get_import_options(preset):
 		_:
 			return []
 
-func get_option_visibility(option: String, options: Dictionary):
+func _get_option_visibility(path: String, option: StringName, options: Dictionary):
 	return true
+	
+func _get_priority():
+	return 1
+	
+func _get_import_order():
+	return 1
 
-func import(source_file: String, save_path: String, options: Dictionary, platform_variants: Array, gen_files: Array):
+func _import(source_file: String, save_path: String, options: Dictionary, platform_variants: Array, gen_files: Array):
 	_process_path(source_file, options)
 	_export_path(save_path)
