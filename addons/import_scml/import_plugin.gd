@@ -528,7 +528,7 @@ func _create_bones(scml_entity: SCMLEntity, skeleton):
 	for scml_obj_info in scml_entity.object_infos.values():
 		var bone = Bone2D.new()
 		bone.name = scml_obj_info.name
-		bone.set_default_length(scml_obj_info.width)
+		bone.set_length(scml_obj_info.width)
 		bones[bone.name] = bone
 	return bones
 
@@ -538,6 +538,7 @@ class Entity:
 	var _scml_entity: SCMLEntity
 	var _skeleton: Skeleton2D
 	var _animation_player: AnimationPlayer
+	var _animation_library: AnimationLibrary
 	var _options: Dictionary
 	var _bones: Dictionary
 	var _scales: Dictionary
@@ -557,6 +558,8 @@ class Entity:
 		self._skeleton.set_owner(self._imported)
 
 		self._animation_player = AnimationPlayer.new()
+		self._animation_library = AnimationLibrary.new()
+		self._animation_player.add_animation_library("scml", self._animation_library)
 		self._animation_player.name = "AnimationPlayer"
 		self._animation_player.speed_scale = self._options.playback_speed
 		self._skeleton.add_child(self._animation_player)
@@ -597,7 +600,7 @@ class Entity:
 				instance.modulate = modulate
 				instance.rotation_degrees = rotation_degrees
 				if instance is Sprite2D:
-					var texture: Texture = self.get_animation_value(animation, String(node_path) + ':texture', instance.texture)
+					var texture: Texture2D = self.get_animation_value(animation, String(node_path) + ':texture', instance.texture)
 					var offset: Vector2 = self.get_animation_value(animation, String(node_path) + ':offset', instance.offset)
 					var scale: Vector2 = self.get_animation_value(animation, String(node_path) + ':scale', instance.scale)
 					instance.texture = texture
@@ -676,18 +679,14 @@ class Entity:
 		animation.loop_mode = self._options.loop_animations
 		animation.length = scml_animation.length
 		animation.step = 0.01
-		
-		var library = AnimationLibrary.new()
-		library.add_animation(scml_animation.name, animation)
-		
-		self._animation_player.add_animation_library(scml_animation.name, library)
+		self._animation_library.add_animation(scml_animation.name, animation)
 		return animation
 
 	func add_animation_key(animation: Animation, path: NodePath, time: float, value, spin):
 		if value == null:
 			return
 		var easing = 1 if spin == 0 else -1
-		var track_index = animation.find_track(path,Animation.TYPE_VALUE)
+		var track_index = animation.find_track(path, Animation.TYPE_VALUE)
 		if track_index < 0:
 			track_index = animation.add_track(Animation.TYPE_VALUE)
 			animation.track_set_path(track_index, path)
