@@ -693,7 +693,7 @@ class Entity:
 			animation.value_track_set_update_mode(track_index, Animation.UPDATE_CONTINUOUS)
 			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
 		var count = animation.track_get_key_count(track_index)
-		if count > 0 and String(path).ends_with(':rotation_degrees'):
+		if count > 0 and String(path).ends_with(':rotation'):
 			var previous_key_index = count - 1
 			var previous_ease = animation.track_get_key_transition(track_index, previous_key_index)
 			var previous_value = animation.track_get_key_value(track_index, previous_key_index)
@@ -707,16 +707,16 @@ class Entity:
 			# currently not needed by me.
 			while previous_ease < 0:
 				if value > previous_value:
-					value -= 360
-				elif (value + 360) <= previous_value:
-					value += 360
+					value -= TAU
+				elif (value + TAU) <= previous_value:
+					value += TAU
 				else:
 					break
 			while previous_ease > 0:
 				if value < previous_value:
-					value += 360
-				elif (value - 360) >= previous_value:
-					value -= 360
+					value += TAU
+				elif (value - TAU) >= previous_value:
+					value -= TAU
 				else:
 					break
 		animation.track_insert_key(track_index, time, value, easing)
@@ -821,7 +821,7 @@ func _process_path(path: String, options: Dictionary):
 						var node_path = entity._skeleton.get_path_to(child)
 						entity.add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
 						entity.add_animation_key(animation, String(node_path) + ':modulate', scml_timeline_key.time, modulate, 0)
-						entity.add_animation_key(animation, String(node_path) + ':rotation_degrees', scml_timeline_key.time, angle, scml_timeline_key.spin)
+						entity.add_animation_key(animation, String(node_path) + ':rotation', scml_timeline_key.time, deg_to_rad(angle), scml_timeline_key.spin)
 						if child is Sprite2D:
 							entity.add_animation_key(animation, String(node_path) + ':texture', scml_timeline_key.time, texture, 0)
 							entity.add_animation_key(animation, String(node_path) + ':offset', scml_timeline_key.time, offset, 0)
