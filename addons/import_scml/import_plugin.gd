@@ -8,6 +8,7 @@ var _thread : Thread = null
 var _imported : Node2D = null
 
 const REPARENTING_INSTANCING = 'instance per parent'
+const HALF_TAU = TAU/2
 
 
 class SCMLParsedNode:
@@ -160,6 +161,9 @@ class Utilities:
 	static func float_or_null(value):
 		return float(value) if value != null else value
 
+	static func is_a_rotation_path(path: NodePath) -> bool:
+		return String(path).ends_with(':rotation')
+
 
 class SCML2DNode:
 	extends SCMLParsedNode
@@ -180,7 +184,8 @@ class SCML2DNode:
 		self.pivot_y = self.utilities.float_or_null(attributes.get('pivot_y'))
 		self.scale_x = self.utilities.float_or_null(attributes.get('scale_x'))
 		self.scale_y = self.utilities.float_or_null(attributes.get('scale_y'))
-		self.angle = self.utilities.float_or_null(attributes.get('angle'))
+		var angle_deg = self.utilities.float_or_null(attributes.get('angle'))
+		self.angle = deg_to_rad(angle_deg) if angle_deg != null else null
 		self.alpha = self.utilities.float_or_null(attributes.get('a', 1))
 
 
@@ -449,19 +454,20 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 		var animation = animation_player.get_animation(animation_name)
 		for track_index in range(animation.get_track_count()):
 			var path = animation.track_get_path(track_index)
+			var is_rotation = Utilities.is_a_rotation_path(path)
 
-			if not String(path).ends_with(':rotation_degrees'):
+			if not is_rotation:
 				continue
 
 			var value = animation.track_get_key_value(track_index, 0)
-			var diff = int(value / 360) * 360
+			var diff = int(value / TAU) * TAU
 
-			if value - diff < -180: # value/diff are negative
-				diff -= 360
-			elif value - diff > 180: # value/diff are positive
-				diff += 360
+			if value - diff < -HALF_TAU: # value/diff are negative
+				diff -= TAU
+			elif value - diff > HALF_TAU: # value/diff are positive
+				diff += TAU
 
-			if diff == 0:
+			if is_zero_approx(diff):
 				continue
 
 			for key_index in range(animation.track_get_key_count(track_index)):
@@ -476,6 +482,7 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 
 		for track_index in range(animation.get_track_count()):
 			var path = animation.track_get_path(track_index)
+			var is_rotation = Utilities.is_a_rotation_path(path)
 			var can_remove = animation.track_get_key_count(track_index) < 2
 			if optimized_tracks.has(path):
 				continue
@@ -493,15 +500,18 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 				elif other_track_value != value:
 					can_remove = false
 
-				if String(path).ends_with(':rotation_degrees'):
+				if is_rotation:
 					var diff = other_track_value - value
 					var other_track_adjust = 0
-					if diff > 180: # other_track_value greater than value
-						other_track_adjust = -360
-					elif diff < -180: # other_track_value samller than value
-						other_track_adjust = 360
-					if other_track_adjust == 0:
+
+					if diff > HALF_TAU: # other_track_value greater than value
+						other_track_adjust = -TAU
+					elif diff < -HALF_TAU: # other_track_value samller than value
+						other_track_adjust = TAU
+
+					if is_zero_approx(other_track_adjust):
 						continue
+
 					for key_index in range(other_animation.track_get_key_count(other_track_index)):
 						other_track_value = other_animation.track_get_key_value(other_track_index, key_index)
 						other_animation.track_set_key_value(other_track_index, key_index, other_track_value + other_track_adjust)
@@ -564,7 +574,7 @@ class Entity:
 		self._animation_player.speed_scale = self._options.playback_speed
 		self._skeleton.add_child(self._animation_player)
 		self._animation_player.set_owner(self._imported)
-		self._skeleton.rotation_degrees = -180
+		self._skeleton.rotation = -HALF_TAU
 		self._skeleton.scale = Vector2(-1, 1)
 		self._bones = {'skeleton': self._skeleton}
 		self._scales = {self._skeleton: Vector2.ONE}
@@ -595,10 +605,10 @@ class Entity:
 				var node_path = self._skeleton.get_path_to(instance)
 				var position: Vector2 = self.get_animation_value(animation, String(node_path) + ':position', instance.position)
 				var modulate: Color = self.get_animation_value(animation, String(node_path) + ':modulate', instance.modulate)
-				var rotation_degrees: float = self.get_animation_value(animation, String(node_path) + ':rotation_degrees', instance.rotation_degrees)
+				var rotation: float = self.get_animation_value(animation, String(node_path) + ':rotation', instance.rotation)
 				instance.position = position
 				instance.modulate = modulate
-				instance.rotation_degrees = rotation_degrees
+				instance.rotation = rotation
 				if instance is Sprite2D:
 					var texture: Texture2D = self.get_animation_value(animation, String(node_path) + ':texture', instance.texture)
 					var offset: Vector2 = self.get_animation_value(animation, String(node_path) + ':offset', instance.offset)
@@ -692,8 +702,9 @@ class Entity:
 			animation.track_set_path(track_index, path)
 			animation.value_track_set_update_mode(track_index, Animation.UPDATE_CONTINUOUS)
 			animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
+			animation.track_set_interpolation_loop_wrap(track_index, self._options.loop_wrap_interpolation)
 		var count = animation.track_get_key_count(track_index)
-		if count > 0 and String(path).ends_with(':rotation'):
+		if count > 0 and Utilities.is_a_rotation_path(path):
 			var previous_key_index = count - 1
 			var previous_ease = animation.track_get_key_transition(track_index, previous_key_index)
 			var previous_value = animation.track_get_key_value(track_index, previous_key_index)
@@ -789,7 +800,7 @@ func _process_path(path: String, options: Dictionary):
 						var y = scml_child.y if scml_child.y != null else 0
 						var scale_x = scml_child.scale_x if scml_child.scale_x != null else 1
 						var scale_y = scml_child.scale_y if scml_child.scale_y != null else 1
-						var angle = scml_child.angle if scml_child.angle != null else null
+						var angle_rad = scml_child.angle if scml_child.angle != null else null
 						var parentScale = entity._scales[child.get_parent()]
 						var scale = Vector2(scale_x, scale_y) * parentScale
 						var position = Vector2(x, y) * parentScale
@@ -812,16 +823,16 @@ func _process_path(path: String, options: Dictionary):
 							child.centered = false
 							child.scale = scale
 
-						child.rotation_degrees = angle
+						child.rotation = angle_rad
 						child.modulate = modulate
 
-						if angle != null:
-							child.rotation_degrees = angle
+						if angle_rad != null:
+							child.rotation = angle_rad
 
 						var node_path = entity._skeleton.get_path_to(child)
 						entity.add_animation_key(animation, String(node_path) + ':position', scml_timeline_key.time, position, 0)
 						entity.add_animation_key(animation, String(node_path) + ':modulate', scml_timeline_key.time, modulate, 0)
-						entity.add_animation_key(animation, String(node_path) + ':rotation', scml_timeline_key.time, deg_to_rad(angle), scml_timeline_key.spin)
+						entity.add_animation_key(animation, String(node_path) + ':rotation', scml_timeline_key.time, angle_rad, scml_timeline_key.spin)
 						if child is Sprite2D:
 							entity.add_animation_key(animation, String(node_path) + ':texture', scml_timeline_key.time, texture, 0)
 							entity.add_animation_key(animation, String(node_path) + ':offset', scml_timeline_key.time, offset, 0)
@@ -888,7 +899,16 @@ func _get_import_options(path, preset):
 						"default_value": true
 					}, {
 						"name": "loop_animations",
-						"default_value": true
+						"default_value": Animation.LOOP_LINEAR,
+						"property_hint": PROPERTY_HINT_ENUM,
+						"hint_string": ",".join([
+							"NONE:%d" % Animation.LOOP_NONE,
+							"LINEAR:%d" % Animation.LOOP_LINEAR,
+							"PINGPONG:%d" % Animation.LOOP_PINGPONG,
+						]),
+					}, {
+						"name": "loop_wrap_interpolation",
+						"default_value": false
 					}, {
 						"name": "optimize_for_blends",
 						"default_value": true
