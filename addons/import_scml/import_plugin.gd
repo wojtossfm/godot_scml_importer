@@ -759,6 +759,8 @@ class Entity:
 		animation.track_set_path(track_index, path)
 		if Utilities.is_a_texture_path(path):
 			animation.value_track_set_update_mode(track_index, Animation.UPDATE_DISCRETE)
+		else:
+			animation.value_track_set_update_mode(track_index, Animation.UPDATE_CONTINUOUS)
 
 	func add_animation_key(animation: Animation, path: NodePath, scml_mainline_key: SCMLMainlineKey, spin: int, value):
 		var is_rotation: bool = Utilities.is_a_rotation_path(path)
@@ -912,7 +914,6 @@ func _process_path(path: String, options: Dictionary):
 							child.centered = false
 							child.scale = scale
 
-						child.rotation = angle_rad
 						child.modulate = modulate
 
 						if angle_rad != null:
@@ -960,7 +961,6 @@ func _process_path(path: String, options: Dictionary):
 			_optimize_animation(animation)
 			
 			for track_index in range(animation.get_track_count()):
-				animation.value_track_set_update_mode(track_index, Animation.UPDATE_CONTINUOUS)
 				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
 				animation.track_set_interpolation_loop_wrap(track_index, options.loop_wrap_interpolation)
 
