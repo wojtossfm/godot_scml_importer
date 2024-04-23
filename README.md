@@ -14,7 +14,7 @@ I didn't want to need to recreate the animations that I already had. This is why
 ## Tested/supported
  * Godot
 	 * 3.1.1 (< 0.8.0)
-	 * 4.0, 4.1 (0.9.0)
+	 * 4.0, 4.1, 4.2 (0.9.1)
  * Spriter SCML generator versions
 	 * r11
  
