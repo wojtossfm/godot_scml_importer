@@ -13,15 +13,27 @@ I didn't want to need to recreate the animations that I already had. This is why
 
 ## Tested/supported
  * Godot
-     * 3.1.1 (< 0.8.0)
-     * 4.0, 4.1 (0.9.0)
+	 * 3.1.1 (< 0.8.0)
+	 * 4.0, 4.1 (0.9.0)
  * Spriter SCML generator versions
-     * r11
+	 * r11
  
-# Not currently supported
+# Known limitations
+
+## Not currently supported
  * absolute values as found in e.g. generator version b5.95 that the GreyGuy sample comes with
+ * eventline (not sure what use case these serve - haven't investigated)
+ * object types other than bone and the regular object (sprites)
+ * all interpolation is currently assumed to be linear - other interpolations aren't supported for values
+ * looping values isn't interpreted
 
 # Changelog
+
+### 0.9.1
+
+* Ignore eventline when present for now to at least partially support the files
+* Ignore points to prevent them from breaking things till support can be considered
+* Adjust visibility of parts that might not be present in all animations to have them not be shown when not expected.
 
 ### 0.9.0
 
