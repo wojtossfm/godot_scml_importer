@@ -495,6 +495,9 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 			if not is_rotation:
 				continue
 
+			if animation.track_get_key_count(track_index) == 0:
+				continue
+
 			var value = animation.track_get_key_value(track_index, 0)
 			var diff = int(value / TAU) * TAU
 
@@ -866,6 +869,7 @@ func _process_path(path: String, options: Dictionary):
 						entity.ensure_track_exists(animation, String(node_path) + ':texture')
 						entity.ensure_track_exists(animation, String(node_path) + ':offset')
 						entity.ensure_track_exists(animation, String(node_path) + ':scale')
+						entity.ensure_track_exists(animation, String(node_path) + ':z_index')
 
 			for scml_mainline_key_t in scml_animation.mainline.children:
 				var scml_mainline_key: SCMLMainlineKey = scml_mainline_key_t
@@ -899,8 +903,12 @@ func _process_path(path: String, options: Dictionary):
 						var texture = null
 						child.position = position
 						if child is Bone2D and scml_child is SCMLBone:
+							if scale.y < 0:
+								child.scale = Vector2(1, -1)
+								scale = Vector2(scale.x, -scale.y)
+							else:
+								child.scale = Vector2.ONE
 							entity._scales[child] = scale
-							child.scale = Vector2.ONE
 						else:
 							var scml_file = parsed_data.folders[scml_child.folder].files[scml_child.file]
 							var pivot_x = scml_child.pivot_x if scml_child.pivot_x != null else scml_file.pivot_x
@@ -927,6 +935,7 @@ func _process_path(path: String, options: Dictionary):
 							entity.add_animation_key(animation, String(node_path) + ':texture', scml_mainline_key, scml_timeline_key.spin, texture)
 							entity.add_animation_key(animation, String(node_path) + ':offset', scml_mainline_key, scml_timeline_key.spin, offset)
 							entity.add_animation_key(animation, String(node_path) + ':scale', scml_mainline_key, scml_timeline_key.spin, scale)
+							entity.add_animation_key(animation, String(node_path) + ':z_index', scml_mainline_key, scml_timeline_key.spin, scml_reference.z_index)
 
 				for node_path in node_paths_missing.keys():
 					entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, 0, false)
@@ -946,6 +955,7 @@ func _process_path(path: String, options: Dictionary):
 						entity.remove_if_track_empty(animation, String(node_path) + ':texture')
 						entity.remove_if_track_empty(animation, String(node_path) + ':offset')
 						entity.remove_if_track_empty(animation, String(node_path) + ':scale')
+						entity.remove_if_track_empty(animation, String(node_path) + ':z_index')
 					
 					for other_child in entity.get_instances_other(child_path):
 						var alt_path = entity.get_path_to_instance(other_child)
