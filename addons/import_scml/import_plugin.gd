@@ -289,6 +289,7 @@ class SCMLAnimation:
 	var id: int
 	var length: float
 	var interval: float
+	var looping: bool
 	var name: String
 	var mainline: SCMLMainline
 	var timelines : Dictionary
@@ -299,6 +300,7 @@ class SCMLAnimation:
 		self.length = float(attributes["length"]) / 100
 		self.interval = float(attributes["interval"]) / 100
 		self.name = attributes["name"]
+		self.looping = attributes.get("looping", true)
 		self.timelines = {}
 		self.eventlines = {}
 
@@ -977,7 +979,12 @@ func _process_path(path: String, options: Dictionary):
 			
 			for track_index in range(animation.get_track_count()):
 				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
-				animation.track_set_interpolation_loop_wrap(track_index, options.loop_wrap_interpolation)
+				if scml_animation.looping:
+					animation.loop_mode = Animation.LOOP_LINEAR
+					animation.track_set_interpolation_loop_wrap(track_index, options.loop_wrap_interpolation)
+				else:
+					animation.loop_mode = Animation.LOOP_NONE
+					animation.track_set_interpolation_loop_wrap(track_index, false)
 
 		if options.optimize_for_blends:
 			_optimize_animations_for_blends(entity._animation_player)
@@ -1042,7 +1049,7 @@ func _get_import_options(path, preset):
 						]),
 					}, {
 						"name": "loop_wrap_interpolation",
-						"default_value": false
+						"default_value": true
 					}, {
 						"name": "optimize_for_blends",
 						"default_value": true
