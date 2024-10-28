@@ -658,9 +658,11 @@ class Entity:
 					var texture: Texture2D = self.get_animation_value(animation, String(node_path) + ':texture', instance.texture)
 					var offset: Vector2 = self.get_animation_value(animation, String(node_path) + ':offset', instance.offset)
 					var scale: Vector2 = self.get_animation_value(animation, String(node_path) + ':scale', instance.scale)
+					var z_index: int = self.get_animation_value(animation, String(node_path) + ':z_index', instance.z_index)
 					instance.texture = texture
 					instance.offset = offset
 					instance.scale = scale
+					instance.z_index = z_index
 
 	func build_path(scml_animation: SCMLAnimation, scml_mainline_key: SCMLMainlineKey, scml_reference: SCMLReference) -> Array:
 		var path_to_skeleton = []
@@ -927,14 +929,17 @@ func _process_path(path: String, options: Dictionary):
 						if angle_rad != null:
 							child.rotation = angle_rad
 
-						entity.add_animation_key(animation, String(node_path) + ':position', scml_mainline_key, scml_timeline_key.spin, position)
-						entity.add_animation_key(animation, String(node_path) + ':modulate', scml_mainline_key, scml_timeline_key.spin, modulate)
-						entity.add_animation_key(animation, String(node_path) + ':rotation', scml_mainline_key, scml_timeline_key.spin, angle_rad)
-						entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, scml_timeline_key.spin, true)
+						if scml_mainline_key.time == scml_timeline_key.time:
+							entity.add_animation_key(animation, String(node_path) + ':position', scml_mainline_key, scml_timeline_key.spin, position)
+							entity.add_animation_key(animation, String(node_path) + ':modulate', scml_mainline_key, scml_timeline_key.spin, modulate)
+							entity.add_animation_key(animation, String(node_path) + ':rotation', scml_mainline_key, scml_timeline_key.spin, angle_rad)
+							entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, scml_timeline_key.spin, true)
+
 						if child is Sprite2D:
-							entity.add_animation_key(animation, String(node_path) + ':texture', scml_mainline_key, scml_timeline_key.spin, texture)
-							entity.add_animation_key(animation, String(node_path) + ':offset', scml_mainline_key, scml_timeline_key.spin, offset)
-							entity.add_animation_key(animation, String(node_path) + ':scale', scml_mainline_key, scml_timeline_key.spin, scale)
+							if scml_mainline_key.time == scml_timeline_key.time:
+								entity.add_animation_key(animation, String(node_path) + ':texture', scml_mainline_key, scml_timeline_key.spin, texture)
+								entity.add_animation_key(animation, String(node_path) + ':offset', scml_mainline_key, scml_timeline_key.spin, offset)
+								entity.add_animation_key(animation, String(node_path) + ':scale', scml_mainline_key, scml_timeline_key.spin, scale)
 							entity.add_animation_key(animation, String(node_path) + ':z_index', scml_mainline_key, scml_timeline_key.spin, scml_reference.z_index)
 
 				for node_path in node_paths_missing.keys():
