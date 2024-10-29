@@ -111,7 +111,8 @@ class SCMLMainlineKey:
 
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
-		self.time = float(attributes.get("time", 0)) / 100
+		# time is in MS
+		self.time = float(attributes.get("time", 0)) / 1000
 		self.object_references = {}
 		self.bone_references = {}
 		self.children = []
@@ -220,7 +221,8 @@ class SCMLTimelineKey:
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
 		self.spin = int(attributes.get("spin", 0))
-		self.time = float(attributes.get("time", 0)) / 100
+		# Time is in ms
+		self.time = float(attributes.get("time", 0)) / 1000
 		self.objects = []
 		self.bones = []
 		self.children = []
@@ -297,8 +299,9 @@ class SCMLAnimation:
 
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
-		self.length = float(attributes["length"]) / 100
-		self.interval = float(attributes["interval"]) / 100
+		# time is in ms
+		self.length = float(attributes["length"]) / 1000
+		self.interval = float(attributes["interval"]) / 1000
 		self.name = attributes["name"]
 		self.looping = attributes.get("looping", true)
 		self.timelines = {}
@@ -482,8 +485,11 @@ func _optimize_animation(animation: Animation):
 			if current_transition == previous_transition and current_transition == following_transition \
 				and current_value == previous_value and current_value == following_value:
 				to_remove.append(key_index)
-		for key_index in to_remove:
-			animation.track_remove_key(track_index, key_index)
+			else:
+				to_remove.pop_front()
+				for remove_index in to_remove:
+					animation.track_remove_key(track_index, remove_index)
+				to_remove.clear()
 
 
 func _optimize_animations_for_blends(animation_player: AnimationPlayer):
@@ -1032,7 +1038,7 @@ func _get_import_options(path, preset):
 		Presets.DEFAULT:
 			return [{
 						"name": "playback_speed",
-						"default_value": 3,
+						"default_value": 1,
 						"property_hint": PROPERTY_HINT_RANGE,
 						"hint_string": "0,10,or_greater"
 					}, {
