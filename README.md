@@ -48,6 +48,7 @@ hopefully empower other godot users with the ability to use it.
  * adjust "leaf" bones to not attempt to automatically calculate length to avoid generating a warning on import
  * issue a warning if importing an SCML file that is not generated with "r11"
  * fix animation speed issue - treat times as being in ms and set default playback speed on import to 1
+ * add support for adjust z-index as needed by animations
 
 ### 0.9.1
 

@@ -1070,7 +1070,7 @@ func _get_import_options(path, preset):
 						"default_value": false
 					}, {
 						"name": "optimize_for_blends",
-						"default_value": false
+						"default_value": true
 					}, {
 						"name": "rest_pose_animation",
 						"default_value": ""
