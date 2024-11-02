@@ -408,7 +408,7 @@ func _parse_data(path: String) -> SCMLData:
 					item = parsed_data
 					var generator_version = attributes.get("generator_version")
 					if generator_version != "r11":
-						push_warning("SCML from non r11 version. May not work as expected. Found " + generator_version)
+						push_warning("SCML from non r11 version. May not work as expected. Try re-saving it with v11 spriter. Found " + generator_version)
 				"character_map":
 					item = SCMLParsedNode.new()
 				"map":
