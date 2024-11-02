@@ -111,7 +111,8 @@ class SCMLMainlineKey:
 
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
-		self.time = float(attributes.get("time", 0)) / 100
+		# time is in MS
+		self.time = float(attributes.get("time", 0)) / 1000
 		self.object_references = {}
 		self.bone_references = {}
 		self.children = []
@@ -220,7 +221,8 @@ class SCMLTimelineKey:
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
 		self.spin = int(attributes.get("spin", 0))
-		self.time = float(attributes.get("time", 0)) / 100
+		# Time is in ms
+		self.time = float(attributes.get("time", 0)) / 1000
 		self.objects = []
 		self.bones = []
 		self.children = []
@@ -289,6 +291,7 @@ class SCMLAnimation:
 	var id: int
 	var length: float
 	var interval: float
+	var looping: bool
 	var name: String
 	var mainline: SCMLMainline
 	var timelines : Dictionary
@@ -296,9 +299,12 @@ class SCMLAnimation:
 
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
-		self.length = float(attributes["length"]) / 100
-		self.interval = float(attributes["interval"]) / 100
+		# time is in ms
+		self.length = float(attributes["length"]) / 1000
+		self.interval = float(attributes["interval"]) / 1000
 		self.name = attributes["name"]
+		var looping_str = attributes.get("looping", "true")
+		self.looping = looping_str != "false"
 		self.timelines = {}
 		self.eventlines = {}
 
@@ -400,6 +406,9 @@ func _parse_data(path: String) -> SCMLData:
 				"spriter_data":
 					assert(parents.size() == 0)
 					item = parsed_data
+					var generator_version = attributes.get("generator_version")
+					if generator_version != "r11":
+						push_warning("SCML from non r11 version. May not work as expected. Try re-saving it with v11 spriter. Found " + generator_version)
 				"character_map":
 					item = SCMLParsedNode.new()
 				"map":
@@ -480,8 +489,11 @@ func _optimize_animation(animation: Animation):
 			if current_transition == previous_transition and current_transition == following_transition \
 				and current_value == previous_value and current_value == following_value:
 				to_remove.append(key_index)
-		for key_index in to_remove:
-			animation.track_remove_key(track_index, key_index)
+			else:
+				to_remove.pop_front()
+				for remove_index in to_remove:
+					animation.track_remove_key(track_index, remove_index)
+				to_remove.clear()
 
 
 func _optimize_animations_for_blends(animation_player: AnimationPlayer):
@@ -493,6 +505,9 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 			var is_rotation = Utilities.is_a_rotation_path(path)
 
 			if not is_rotation:
+				continue
+
+			if animation.track_get_key_count(track_index) == 0:
 				continue
 
 			var value = animation.track_get_key_value(track_index, 0)
@@ -655,9 +670,11 @@ class Entity:
 					var texture: Texture2D = self.get_animation_value(animation, String(node_path) + ':texture', instance.texture)
 					var offset: Vector2 = self.get_animation_value(animation, String(node_path) + ':offset', instance.offset)
 					var scale: Vector2 = self.get_animation_value(animation, String(node_path) + ':scale', instance.scale)
+					var z_index: int = self.get_animation_value(animation, String(node_path) + ':z_index', instance.z_index)
 					instance.texture = texture
 					instance.offset = offset
 					instance.scale = scale
+					instance.z_index = z_index
 
 	func build_path(scml_animation: SCMLAnimation, scml_mainline_key: SCMLMainlineKey, scml_reference: SCMLReference) -> Array:
 		var path_to_skeleton = []
@@ -737,7 +754,7 @@ class Entity:
 
 	func create_animation(scml_animation: SCMLAnimation) -> Animation:
 		var animation = Animation.new()
-		animation.loop_mode = self._options.loop_animations
+		animation.loop_mode = self._options.loop_animations if scml_animation.looping else Animation.LOOP_NONE
 		animation.length = scml_animation.length
 		animation.step = 0.01
 		self._animation_library.add_animation(scml_animation.name, animation)
@@ -862,10 +879,11 @@ func _process_path(path: String, options: Dictionary):
 					entity.ensure_track_exists(animation, String(node_path) + ':position')
 					entity.ensure_track_exists(animation, String(node_path) + ':modulate')
 					entity.ensure_track_exists(animation, String(node_path) + ':rotation')
+					entity.ensure_track_exists(animation, String(node_path) + ':scale')
 					if child is Sprite2D:
 						entity.ensure_track_exists(animation, String(node_path) + ':texture')
 						entity.ensure_track_exists(animation, String(node_path) + ':offset')
-						entity.ensure_track_exists(animation, String(node_path) + ':scale')
+						entity.ensure_track_exists(animation, String(node_path) + ':z_index')
 
 			for scml_mainline_key_t in scml_animation.mainline.children:
 				var scml_mainline_key: SCMLMainlineKey = scml_mainline_key_t
@@ -899,8 +917,9 @@ func _process_path(path: String, options: Dictionary):
 						var texture = null
 						child.position = position
 						if child is Bone2D and scml_child is SCMLBone:
-							entity._scales[child] = scale
-							child.scale = Vector2.ONE
+							entity._scales[child] = Vector2(abs(scale.x), abs(scale.y))
+							scale = Vector2(sign(scale.x), sign(scale.y))
+							child.scale = scale
 						else:
 							var scml_file = parsed_data.folders[scml_child.folder].files[scml_child.file]
 							var pivot_x = scml_child.pivot_x if scml_child.pivot_x != null else scml_file.pivot_x
@@ -919,14 +938,18 @@ func _process_path(path: String, options: Dictionary):
 						if angle_rad != null:
 							child.rotation = angle_rad
 
-						entity.add_animation_key(animation, String(node_path) + ':position', scml_mainline_key, scml_timeline_key.spin, position)
-						entity.add_animation_key(animation, String(node_path) + ':modulate', scml_mainline_key, scml_timeline_key.spin, modulate)
-						entity.add_animation_key(animation, String(node_path) + ':rotation', scml_mainline_key, scml_timeline_key.spin, angle_rad)
-						entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, scml_timeline_key.spin, true)
-						if child is Sprite2D:
-							entity.add_animation_key(animation, String(node_path) + ':texture', scml_mainline_key, scml_timeline_key.spin, texture)
-							entity.add_animation_key(animation, String(node_path) + ':offset', scml_mainline_key, scml_timeline_key.spin, offset)
+						if scml_mainline_key.time == scml_timeline_key.time:
+							entity.add_animation_key(animation, String(node_path) + ':position', scml_mainline_key, scml_timeline_key.spin, position)
 							entity.add_animation_key(animation, String(node_path) + ':scale', scml_mainline_key, scml_timeline_key.spin, scale)
+							entity.add_animation_key(animation, String(node_path) + ':modulate', scml_mainline_key, scml_timeline_key.spin, modulate)
+							entity.add_animation_key(animation, String(node_path) + ':rotation', scml_mainline_key, scml_timeline_key.spin, angle_rad)
+							entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, scml_timeline_key.spin, true)
+
+						if child is Sprite2D:
+							if scml_mainline_key.time == scml_timeline_key.time:
+								entity.add_animation_key(animation, String(node_path) + ':texture', scml_mainline_key, scml_timeline_key.spin, texture)
+								entity.add_animation_key(animation, String(node_path) + ':offset', scml_mainline_key, scml_timeline_key.spin, offset)
+							entity.add_animation_key(animation, String(node_path) + ':z_index', scml_mainline_key, scml_timeline_key.spin, scml_reference.z_index)
 
 				for node_path in node_paths_missing.keys():
 					entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, 0, false)
@@ -939,13 +962,14 @@ func _process_path(path: String, options: Dictionary):
 					var child: Node2D = entity.get_instance(child_path)
 					var node_path = entity.get_path_to_instance(child)
 					entity.remove_if_track_empty(animation, String(node_path) + ':position')
+					entity.remove_if_track_empty(animation, String(node_path) + ':scale')
 					entity.remove_if_track_empty(animation, String(node_path) + ':modulate')
 					entity.remove_if_track_empty(animation, String(node_path) + ':rotation')
 					entity.remove_if_track_empty(animation, String(node_path) + ':visible')
 					if child is Sprite2D:
 						entity.remove_if_track_empty(animation, String(node_path) + ':texture')
 						entity.remove_if_track_empty(animation, String(node_path) + ':offset')
-						entity.remove_if_track_empty(animation, String(node_path) + ':scale')
+						entity.remove_if_track_empty(animation, String(node_path) + ':z_index')
 					
 					for other_child in entity.get_instances_other(child_path):
 						var alt_path = entity.get_path_to_instance(other_child)
@@ -962,12 +986,28 @@ func _process_path(path: String, options: Dictionary):
 			
 			for track_index in range(animation.get_track_count()):
 				animation.track_set_interpolation_type(track_index, Animation.INTERPOLATION_LINEAR)
-				animation.track_set_interpolation_loop_wrap(track_index, options.loop_wrap_interpolation)
+				if scml_animation.looping:
+					animation.track_set_interpolation_loop_wrap(track_index, options.loop_wrap_interpolation)
+				else:
+					animation.track_set_interpolation_loop_wrap(track_index, false)
 
 		if options.optimize_for_blends:
 			_optimize_animations_for_blends(entity._animation_player)
 
+		for bone_t in entity.bones():
+			var bone: Bone2D = bone_t
+			var has_bone_children: bool = false
+
+			for child in bone.get_children():
+				if child is Bone2D:
+					has_bone_children = true
+
+			if not has_bone_children:
+				bone.set_autocalculate_length_and_angle(false)
+				bone.set_length(1)
+
 		entity.apply_rest_pose()
+
 
 func _export_path(path: String):
 	var scene = PackedScene.new()
@@ -1010,7 +1050,7 @@ func _get_import_options(path, preset):
 		Presets.DEFAULT:
 			return [{
 						"name": "playback_speed",
-						"default_value": 3,
+						"default_value": 1,
 						"property_hint": PROPERTY_HINT_RANGE,
 						"hint_string": "0,10,or_greater"
 					}, {
