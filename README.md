@@ -19,6 +19,11 @@ hopefully empower other godot users with the ability to use it.
 	 * 4.3 (0.9.2)
  * Spriter SCML generator versions
 	 * r11
+
+> [!TIP]
+> When upgrading to 0.9.2 you might need to manually adjust/reset your import settings on any scml files you already have in your project.
+> The main difference/change is the playback speed needs to be set to 1 instead of 3 in order to have the animation speed match
+> the animation speed that was originally expected.
  
 # Known limitations
 
@@ -42,6 +47,7 @@ hopefully empower other godot users with the ability to use it.
  * fix optimisation logic that would incorrectly remove the last keyframe from a chain of similar values leading to incorrect animations
  * adjust "leaf" bones to not attempt to automatically calculate length to avoid generating a warning on import
  * issue a warning if importing an SCML file that is not generated with "r11"
+ * fix animation speed issue - treat times as being in ms and set default playback speed on import to 1
 
 ### 0.9.1
 
