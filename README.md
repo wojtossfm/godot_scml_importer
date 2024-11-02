@@ -22,8 +22,10 @@ hopefully empower other godot users with the ability to use it.
 
 > [!TIP]
 > When upgrading to 0.9.2 you might need to manually adjust/reset your import settings on any scml files you already have in your project.
-> The main difference/change is the playback speed needs to be set to 1 instead of 3 in order to have the animation speed match
-> the animation speed that was originally expected.
+> The changes to the default preset won't be automatically applied for already imported scml files.
+> The differences if you would want to apply these manually are:
+> * playback speed needs to be set to 1 instead of 3 in order to have the animation speed match the animation speed that was originally expected.
+> * loop wrap interpolation has been enabled by default since in the tested cases it meant the animations matched the spriter preview
  
 # Known limitations
 
@@ -32,7 +34,7 @@ hopefully empower other godot users with the ability to use it.
  * eventline (not sure what use case these serve - haven't investigated)
  * object types other than bone and the regular object (sprites)
  * all interpolation is currently assumed to be linear - other interpolations aren't supported for values
- * character map support
+ * character map support for supporting replacing parts
 
 ## Known implementation quirks
  * Bone scale animations will not work as expected due to how the scale handling is implemented in the plugin. Currently not expected to change as not expecting it to be a common concern for users (at least not reported).
@@ -47,8 +49,10 @@ hopefully empower other godot users with the ability to use it.
  * fix optimisation logic that would incorrectly remove the last keyframe from a chain of similar values leading to incorrect animations
  * adjust "leaf" bones to not attempt to automatically calculate length to avoid generating a warning on import
  * issue a warning if importing an SCML file that is not generated with "r11"
- * fix animation speed issue - treat times as being in ms and set default playback speed on import to 1
+ * fix animation speed issue - treat times as being in ms
+ * set default playback speed on import to 1
  * add support for adjust z-index as needed by animations
+ * set default to use loop wrap interpolation
 
 ### 0.9.1
 
