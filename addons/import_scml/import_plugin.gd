@@ -1067,7 +1067,7 @@ func _get_import_options(path, preset):
 						]),
 					}, {
 						"name": "loop_wrap_interpolation",
-						"default_value": false
+						"default_value": true
 					}, {
 						"name": "optimize_for_blends",
 						"default_value": true
