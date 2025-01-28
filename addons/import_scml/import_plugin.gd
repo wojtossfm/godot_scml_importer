@@ -805,26 +805,9 @@ class Entity:
 			#if previous_time >= time:
 				#prints(previous_time, time, path)
 			assert(previous_time < time, str(path))
-			var input_value = value
-			# not the prettiest thing but only way I could figure out to
-			# adapt the values to adhere to the spin direction. I'm 90% sure
-			# this can be simplified to better work with cases where an
-			# over 360 spin is present but imagine those are rare and
-			# currently not needed by me.
-			while previous_ease < 0:
-				if value > previous_value:
-					value -= TAU
-				elif (value + TAU) <= previous_value:
-					value += TAU
-				else:
-					break
-			while previous_ease > 0:
-				if value < previous_value:
-					value += TAU
-				elif (value - TAU) >= previous_value:
-					value -= TAU
-				else:
-					break
+			# Simplified to better handle cases where an over 360 spin is present
+			value = wrapf(value - previous_value, -PI, PI) + previous_value
+			
 		var new_key_index = animation.track_insert_key(track_index, time, value, easing)
 		# We cannot make this strict as there are apparently keys that can have the same time
 		# and are e.g. not in the mainline
