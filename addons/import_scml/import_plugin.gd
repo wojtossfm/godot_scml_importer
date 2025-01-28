@@ -517,16 +517,14 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 				diff -= TAU
 			elif value - diff > HALF_TAU: # value/diff are positive
 				diff += TAU
-				
-			# Normalize rotation to 0-360 degrees
-			value = wrapf(value - diff, 0, TAU)
+
 
 			if is_zero_approx(diff):
 				continue
 
 			for key_index in range(animation.track_get_key_count(track_index)):
 				value = animation.track_get_key_value(track_index, key_index)
-				animation.track_set_key_value(track_index, key_index, value - diff)
+				animation.track_set_key_value(track_index, key_index, wrapf(value - diff, -PI, PI))
 
 	var optimized_tracks = {}
 	var remove_tracks = {}
