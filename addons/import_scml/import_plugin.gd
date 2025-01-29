@@ -938,6 +938,15 @@ func _process_path(path: String, options: Dictionary):
 				for node_path in node_paths_missing.keys():
 					entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, 0, false)
 
+				# add event trigger
+				if options.create_events_as_signals and scml_animation.eventlines:
+					var method_track = animation.add_track(Animation.TYPE_METHOD)
+					animation.track_set_path(method_track, entity.get_path_to_instance(entity._animation_player))
+					for event_id in scml_animation.eventlines:
+						var event: SCMLEventline = scml_animation.eventlines[event_id]
+						for timelinekey in event.children:
+							animation.track_insert_key(method_track, timelinekey.time, {"method": "emit_signal", "args": [event.name]})
+
 			for scml_mainline_key_t in scml_animation.mainline.children:
 				var scml_mainline_key: SCMLMainlineKey = scml_mainline_key_t
 				for scml_reference_t in scml_mainline_key.children:
@@ -1054,6 +1063,9 @@ func _get_import_options(path, preset):
 						"default_value": true
 					}, {
 						"name": "optimize_for_blends",
+						"default_value": true
+					}, {
+						"name": "create_events_as_signals",
 						"default_value": true
 					}, {
 						"name": "rest_pose_animation",
