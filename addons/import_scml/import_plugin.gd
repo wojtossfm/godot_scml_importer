@@ -181,6 +181,7 @@ class SCML2DNode:
 	var scale_y
 	var angle
 	var alpha
+	var visible = true
 
 	func from_attributes(attributes: Dictionary):
 		self.x = self.utilities.float_or_null(attributes.get('x'))
@@ -328,12 +329,44 @@ class SCMLAnimation:
 		return obj
 
 
+class SCMLMap:
+	extends SCMLParsedNode
+	var folder: int
+	var file: int
+	var target_folder: int
+	var target_file: int
+
+	func from_attributes(attributes: Dictionary):
+		self.folder = Utilities.int_or_neg(attributes.get("folder"))
+		self.file = Utilities.int_or_neg(attributes.get("file"))
+		self.target_folder = Utilities.int_or_neg(attributes.get("target_folder"))
+		self.target_file = Utilities.int_or_neg(attributes.get("target_file"))
+
+
+class SCMLCharacterMap:
+	extends SCMLParsedNode
+	var id: int
+	var name: String
+	var maps: Array[SCMLMap]
+	
+	func from_attributes(attributes: Dictionary):
+		self.id = int(attributes["id"])
+		self.name = attributes["name"]
+		
+	func add_map(attributes: Dictionary) -> SCMLMap:
+		var obj = SCMLMap.new()
+		obj.from_attributes(attributes)
+		self.maps.append(obj)
+		return obj
+
+
 class SCMLEntity:
 	extends SCMLParsedNode
 	var id: int
 	var name: String
 	var object_infos : Dictionary
 	var animations : Dictionary
+	var character_maps : Dictionary
 
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
@@ -351,6 +384,12 @@ class SCMLEntity:
 		var obj = SCMLAnimation.new()
 		obj.from_attributes(attributes)
 		self.animations[obj.id] = obj
+		return obj
+
+	func add_character_map(attributes: Dictionary) -> SCMLCharacterMap:
+		var obj = SCMLCharacterMap.new()
+		obj.from_attributes(attributes)
+		self.character_maps[obj.name] = obj
 		return obj
 
 
@@ -410,9 +449,11 @@ func _parse_data(path: String) -> SCMLData:
 					if generator_version != "r11":
 						push_warning("SCML from non r11 version. May not work as expected. Try re-saving it with v11 spriter. Found " + generator_version)
 				"character_map":
-					item = SCMLParsedNode.new()
+					assert(parents.size() == 2)
+					item = last_parent.add_character_map(attributes)
 				"map":
-					item = SCMLParsedNode.new()
+					assert(parents.size() == 3)
+					item = last_parent.add_map(attributes)
 				"folder":
 					assert(parents.size() == 1)
 					item = last_parent.add_folder(attributes)
@@ -828,6 +869,14 @@ func _process_path(path: String, options: Dictionary):
 	_imported = imported
 	imported.name = 'Imported'
 
+	# load character map
+	var character_map = null
+	if options.character_map_file:
+		var file = FileAccess.open(options.character_map_file, FileAccess.READ)
+		var json_string = file.get_as_text()
+		character_map = JSON.parse_string(json_string)
+		file.close()
+
 	var resources = {}
 	for scml_folder in parsed_data.folders.values():
 		for scml_file in scml_folder.files.values():
@@ -837,6 +886,26 @@ func _process_path(path: String, options: Dictionary):
 
 	for scml_entity in parsed_data.entities.values():
 		var entity = Entity.new(imported, scml_entity, options)
+
+		if character_map:
+			for name in character_map["scms"]["cm"]:
+				var scml_character_map: SCMLCharacterMap = scml_entity.character_maps[name]
+				if not scml_character_map:
+					prints("Character map not found:", name)
+					continue
+
+				for scml_map in scml_character_map.maps:
+					for scml_animation in scml_entity.animations.values():
+						for scml_timeline in scml_animation.timelines.values():
+							for scml_timeline_key in scml_timeline.keys.values():
+								for scml_child in scml_timeline_key.children:
+									if scml_child is SCMLObject and scml_child.folder == scml_map.folder and scml_child.file == scml_map.file:
+										if scml_map.target_folder == -1 or scml_map.target_file == -1:
+											scml_child.visible = false
+										else:
+											scml_child.folder = scml_map.target_folder
+											scml_child.file = scml_map.target_file
+
 		var rest_pose_src = options.rest_pose_animation
 		var all_paths: Dictionary = entity.get_paths_set()
 		for scml_animation_t in scml_entity.animations.values():
@@ -900,6 +969,7 @@ func _process_path(path: String, options: Dictionary):
 						var position = Vector2(x, y) * parentScale
 						var modulate = Color(1, 1, 1, scml_child.alpha)
 						var texture = null
+						var visible = bool(scml_child.visible)
 						child.position = position
 						if child is Bone2D and scml_child is SCMLBone:
 							entity._scales[child] = Vector2(abs(scale.x), abs(scale.y))
@@ -928,7 +998,7 @@ func _process_path(path: String, options: Dictionary):
 							entity.add_animation_key(animation, String(node_path) + ':scale', scml_mainline_key, scml_timeline_key.spin, scale)
 							entity.add_animation_key(animation, String(node_path) + ':modulate', scml_mainline_key, scml_timeline_key.spin, modulate)
 							entity.add_animation_key(animation, String(node_path) + ':rotation', scml_mainline_key, scml_timeline_key.spin, angle_rad)
-							entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, scml_timeline_key.spin, true)
+							entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, scml_timeline_key.spin, visible)
 
 						if child is Sprite2D:
 							if scml_mainline_key.time == scml_timeline_key.time:
@@ -1071,6 +1141,11 @@ func _get_import_options(path, preset):
 					}, {
 						"name": "rest_pose_animation",
 						"default_value": ""
+					}, {
+						"name": "character_map_file",
+						"default_value": "res://steve/sprites/charactermap.scms",
+						"property_hint": PROPERTY_HINT_FILE,
+						"hint_string": "*.scms"
 					}, {
 						"name": "reparenting_solution",
 						"default_value": REPARENTING_INSTANCING,
