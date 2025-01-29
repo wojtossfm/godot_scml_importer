@@ -524,7 +524,7 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 
 			for key_index in range(animation.track_get_key_count(track_index)):
 				value = animation.track_get_key_value(track_index, key_index)
-				animation.track_set_key_value(track_index, key_index, wrapf(value - diff, -PI, PI))
+				animation.track_set_key_value(track_index, key_index, value - diff)
 
 	var optimized_tracks = {}
 	var remove_tracks = {}
@@ -875,6 +875,7 @@ func _process_path(path: String, options: Dictionary):
 				for scml_reference_t in scml_mainline_key.children:
 					var scml_reference: SCMLReference = scml_reference_t
 					var scml_timeline: SCMLTimeline = scml_animation.timelines[scml_reference.timeline]
+
 					if scml_timeline.object_type == "point":
 						prints("point object type not supported. Skipping")
 						continue
