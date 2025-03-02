@@ -181,6 +181,7 @@ class SCML2DNode:
 	var scale_y
 	var angle
 	var alpha
+	var visible = true
 
 	func from_attributes(attributes: Dictionary):
 		self.x = self.utilities.float_or_null(attributes.get('x'))
@@ -328,12 +329,44 @@ class SCMLAnimation:
 		return obj
 
 
+class SCMLMap:
+	extends SCMLParsedNode
+	var folder: int
+	var file: int
+	var target_folder: int
+	var target_file: int
+
+	func from_attributes(attributes: Dictionary):
+		self.folder = Utilities.int_or_neg(attributes.get("folder"))
+		self.file = Utilities.int_or_neg(attributes.get("file"))
+		self.target_folder = Utilities.int_or_neg(attributes.get("target_folder"))
+		self.target_file = Utilities.int_or_neg(attributes.get("target_file"))
+
+
+class SCMLCharacterMap:
+	extends SCMLParsedNode
+	var id: int
+	var name: String
+	var maps: Array[SCMLMap]
+	
+	func from_attributes(attributes: Dictionary):
+		self.id = int(attributes["id"])
+		self.name = attributes["name"]
+		
+	func add_map(attributes: Dictionary) -> SCMLMap:
+		var obj = SCMLMap.new()
+		obj.from_attributes(attributes)
+		self.maps.append(obj)
+		return obj
+
+
 class SCMLEntity:
 	extends SCMLParsedNode
 	var id: int
 	var name: String
 	var object_infos : Dictionary
 	var animations : Dictionary
+	var character_maps : Dictionary
 
 	func from_attributes(attributes: Dictionary):
 		self.id = int(attributes["id"])
@@ -351,6 +384,12 @@ class SCMLEntity:
 		var obj = SCMLAnimation.new()
 		obj.from_attributes(attributes)
 		self.animations[obj.id] = obj
+		return obj
+
+	func add_character_map(attributes: Dictionary) -> SCMLCharacterMap:
+		var obj = SCMLCharacterMap.new()
+		obj.from_attributes(attributes)
+		self.character_maps[obj.name] = obj
 		return obj
 
 
@@ -410,9 +449,11 @@ func _parse_data(path: String) -> SCMLData:
 					if generator_version != "r11":
 						push_warning("SCML from non r11 version. May not work as expected. Try re-saving it with v11 spriter. Found " + generator_version)
 				"character_map":
-					item = SCMLParsedNode.new()
+					assert(parents.size() == 2)
+					item = last_parent.add_character_map(attributes)
 				"map":
-					item = SCMLParsedNode.new()
+					assert(parents.size() == 3)
+					item = last_parent.add_map(attributes)
 				"folder":
 					assert(parents.size() == 1)
 					item = last_parent.add_folder(attributes)
@@ -517,6 +558,7 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 				diff -= TAU
 			elif value - diff > HALF_TAU: # value/diff are positive
 				diff += TAU
+
 
 			if is_zero_approx(diff):
 				continue
@@ -805,26 +847,9 @@ class Entity:
 			#if previous_time >= time:
 				#prints(previous_time, time, path)
 			assert(previous_time < time, str(path))
-			var input_value = value
-			# not the prettiest thing but only way I could figure out to
-			# adapt the values to adhere to the spin direction. I'm 90% sure
-			# this can be simplified to better work with cases where an
-			# over 360 spin is present but imagine those are rare and
-			# currently not needed by me.
-			while previous_ease < 0:
-				if value > previous_value:
-					value -= TAU
-				elif (value + TAU) <= previous_value:
-					value += TAU
-				else:
-					break
-			while previous_ease > 0:
-				if value < previous_value:
-					value += TAU
-				elif (value - TAU) >= previous_value:
-					value -= TAU
-				else:
-					break
+			# Simplified to better handle cases where an over 360 spin is present
+			value = wrapf(value - previous_value, -PI, PI) + previous_value
+			
 		var new_key_index = animation.track_insert_key(track_index, time, value, easing)
 		# We cannot make this strict as there are apparently keys that can have the same time
 		# and are e.g. not in the mainline
@@ -844,6 +869,14 @@ func _process_path(path: String, options: Dictionary):
 	_imported = imported
 	imported.name = 'Imported'
 
+	# load character map
+	var character_map = null
+	if options.character_map_file:
+		var file = FileAccess.open(options.character_map_file, FileAccess.READ)
+		var json_string = file.get_as_text()
+		character_map = JSON.parse_string(json_string)
+		file.close()
+
 	var resources = {}
 	for scml_folder in parsed_data.folders.values():
 		for scml_file in scml_folder.files.values():
@@ -853,6 +886,26 @@ func _process_path(path: String, options: Dictionary):
 
 	for scml_entity in parsed_data.entities.values():
 		var entity = Entity.new(imported, scml_entity, options)
+
+		if character_map:
+			for name in character_map["scms"]["cm"]:
+				var scml_character_map: SCMLCharacterMap = scml_entity.character_maps[name]
+				if not scml_character_map:
+					prints("Character map not found:", name)
+					continue
+
+				for scml_map in scml_character_map.maps:
+					for scml_animation in scml_entity.animations.values():
+						for scml_timeline in scml_animation.timelines.values():
+							for scml_timeline_key in scml_timeline.keys.values():
+								for scml_child in scml_timeline_key.children:
+									if scml_child is SCMLObject and scml_child.folder == scml_map.folder and scml_child.file == scml_map.file:
+										if scml_map.target_folder == -1 or scml_map.target_file == -1:
+											scml_child.visible = false
+										else:
+											scml_child.folder = scml_map.target_folder
+											scml_child.file = scml_map.target_file
+
 		var rest_pose_src = options.rest_pose_animation
 		var all_paths: Dictionary = entity.get_paths_set()
 		for scml_animation_t in scml_entity.animations.values():
@@ -891,6 +944,7 @@ func _process_path(path: String, options: Dictionary):
 				for scml_reference_t in scml_mainline_key.children:
 					var scml_reference: SCMLReference = scml_reference_t
 					var scml_timeline: SCMLTimeline = scml_animation.timelines[scml_reference.timeline]
+
 					if scml_timeline.object_type == "point":
 						prints("point object type not supported. Skipping")
 						continue
@@ -915,6 +969,7 @@ func _process_path(path: String, options: Dictionary):
 						var position = Vector2(x, y) * parentScale
 						var modulate = Color(1, 1, 1, scml_child.alpha)
 						var texture = null
+						var visible = bool(scml_child.visible)
 						child.position = position
 						if child is Bone2D and scml_child is SCMLBone:
 							entity._scales[child] = Vector2(abs(scale.x), abs(scale.y))
@@ -943,7 +998,7 @@ func _process_path(path: String, options: Dictionary):
 							entity.add_animation_key(animation, String(node_path) + ':scale', scml_mainline_key, scml_timeline_key.spin, scale)
 							entity.add_animation_key(animation, String(node_path) + ':modulate', scml_mainline_key, scml_timeline_key.spin, modulate)
 							entity.add_animation_key(animation, String(node_path) + ':rotation', scml_mainline_key, scml_timeline_key.spin, angle_rad)
-							entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, scml_timeline_key.spin, true)
+							entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, scml_timeline_key.spin, visible)
 
 						if child is Sprite2D:
 							if scml_mainline_key.time == scml_timeline_key.time:
@@ -953,6 +1008,15 @@ func _process_path(path: String, options: Dictionary):
 
 				for node_path in node_paths_missing.keys():
 					entity.add_animation_key(animation, String(node_path) + ':visible', scml_mainline_key, 0, false)
+
+			# add event trigger
+			if options.create_events_as_signals and scml_animation.eventlines:
+				var method_track = animation.add_track(Animation.TYPE_METHOD)
+				animation.track_set_path(method_track, entity.get_path_to_instance(entity._animation_player))
+				for event_id in scml_animation.eventlines.keys():
+					var event: SCMLEventline = scml_animation.eventlines[event_id]
+					for timelinekey in event.children:
+						animation.track_insert_key(method_track, timelinekey.time, {"method": "call_deferred", "args": ["emit_signal", event.name]})
 
 			for scml_mainline_key_t in scml_animation.mainline.children:
 				var scml_mainline_key: SCMLMainlineKey = scml_mainline_key_t
@@ -1072,8 +1136,16 @@ func _get_import_options(path, preset):
 						"name": "optimize_for_blends",
 						"default_value": true
 					}, {
+						"name": "create_events_as_signals",
+						"default_value": true
+					}, {
 						"name": "rest_pose_animation",
 						"default_value": ""
+					}, {
+						"name": "character_map_file",
+						"default_value": "res://steve/sprites/charactermap.scms",
+						"property_hint": PROPERTY_HINT_FILE,
+						"hint_string": "*.scms"
 					}, {
 						"name": "reparenting_solution",
 						"default_value": REPARENTING_INSTANCING,
