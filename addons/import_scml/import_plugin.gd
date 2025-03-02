@@ -1114,7 +1114,7 @@ func _get_import_options(path, preset):
 		Presets.DEFAULT:
 			return [{
 						"name": "playback_speed",
-						"default_value": 1,
+						"default_value": 1.0,
 						"property_hint": PROPERTY_HINT_RANGE,
 						"hint_string": "0,10,or_greater"
 					}, {
@@ -1143,7 +1143,7 @@ func _get_import_options(path, preset):
 						"default_value": ""
 					}, {
 						"name": "character_map_file",
-						"default_value": "res://steve/sprites/charactermap.scms",
+						"default_value": "",
 						"property_hint": PROPERTY_HINT_FILE,
 						"hint_string": "*.scms"
 					}, {
