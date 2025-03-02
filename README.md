@@ -15,8 +15,8 @@ hopefully empower other godot users with the ability to use it.
 ## Tested/supported
  * Godot
 	 * 3.1.1 (< 0.8.0)
-	 * 4.0, 4.1, 4.2 (0.9.1)
-	 * 4.3 (0.9.2)
+	 * 4.0, 4.1, 4.2 (0.9.1, 0.10.0)
+	 * 4.3 (0.9.2, 0.10.0)
  * Spriter SCML generator versions
 	 * r11
 
@@ -40,6 +40,12 @@ hopefully empower other godot users with the ability to use it.
  * Bone scale animations will not work as expected due to how the scale handling is implemented in the plugin. Currently not expected to change as not expecting it to be a common concern for users (at least not reported).
 
 # Changelog
+
+### 0.10.0
+
+ * changes to how angles are handled to avoid awkward spins
+ * optional character map support (import option)
+ * Thank you "SmiteIsTrashBro" for your contributing PR (#35) with this
 
 ### 0.9.2
 
