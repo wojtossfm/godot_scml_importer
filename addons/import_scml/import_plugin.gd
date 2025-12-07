@@ -302,7 +302,7 @@ class SCMLAnimation:
 		self.id = int(attributes["id"])
 		# time is in ms
 		self.length = float(attributes["length"]) / 1000
-		self.interval = attributes.get("interval", 0.0) / 1000;
+		self.interval = float(attributes.get("interval", 0.0)) / 1000
 		self.name = attributes["name"]
 		var looping_str = attributes.get("looping", "true")
 		self.looping = looping_str != "false"
