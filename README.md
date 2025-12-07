@@ -41,6 +41,11 @@ hopefully empower other godot users with the ability to use it.
 
 # Changelog
 
+### 0.10.1
+
+ * Fix for interval not being present in attributes breaking import
+ * Thank you "Yanxiyimengya" for your contributing PR (#37) with this
+
 ### 0.10.0
 
  * changes to how angles are handled to avoid awkward spins
