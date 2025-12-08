@@ -16,7 +16,7 @@ hopefully empower other godot users with the ability to use it.
  * Godot
 	 * 3.1.1 (< 0.8.0)
 	 * 4.0, 4.1, 4.2 (0.9.1, 0.10.0)
-	 * 4.3 (0.9.2, 0.10.0)
+	 * 4.3 (0.9.2, 0.10.0, 0.10.1, 0.10.2)
  * Spriter SCML generator versions
 	 * r11
 
@@ -26,7 +26,7 @@ hopefully empower other godot users with the ability to use it.
 > The differences if you would want to apply these manually are:
 > * playback speed needs to be set to 1 instead of 3 in order to have the animation speed match the animation speed that was originally expected.
 > * loop wrap interpolation has been enabled by default since in the tested cases it meant the animations matched the spriter preview
- 
+
 # Known limitations
 
 ## Not currently supported
@@ -40,6 +40,15 @@ hopefully empower other godot users with the ability to use it.
  * Bone scale animations will not work as expected due to how the scale handling is implemented in the plugin. Currently not expected to change as not expecting it to be a common concern for users (at least not reported).
 
 # Changelog
+
+### 0.10.2
+
+ * Logic that was removing duplicate keyframes on a track was only removing subset but leaving the last remaining set.
+   * If all keyframes for a track had the same value then it would leave them all.
+   * Thank you "Yanxiyimengya" for reporting this.
+   * I pondered if this is a breaking change but decided it is more of a bugfix given this optimisation behavious was already present and just was only touching some of the sets of keys.
+ * Adjusted structure of repository and export to make users lives easier.
+   * Thank you "Gramps" for reporting this (#40)
 
 ### 0.10.1
 
