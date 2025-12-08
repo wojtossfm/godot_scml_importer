@@ -536,6 +536,11 @@ func _optimize_animation(animation: Animation):
 					animation.track_remove_key(track_index, remove_index)
 				to_remove.clear()
 
+		to_remove.pop_front()
+		for remove_index in to_remove:
+			animation.track_remove_key(track_index, remove_index)
+		to_remove.clear()
+
 
 func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 	var animation_names = animation_player.get_animation_list()
@@ -577,18 +582,24 @@ func _optimize_animations_for_blends(animation_player: AnimationPlayer):
 			var path = animation.track_get_path(track_index)
 			var is_rotation = Utilities.is_a_rotation_path(path)
 			var is_visibility = Utilities.is_visibility_path(path)
+
 			if is_visibility:
 				continue
+
 			var can_remove = animation.track_get_key_count(track_index) < 2
+
 			if optimized_tracks.has(path):
 				continue
+
 			var value = animation.track_get_key_value(track_index, 0)
 			for other_animation_index in range(animation_index + 1, len(animation_names)):
 				var other_animation_name = animation_names[other_animation_index]
 				var other_animation = animation_player.get_animation(other_animation_name)
 				var other_track_index = other_animation.find_track(path, Animation.TYPE_VALUE)
+
 				if other_track_index < 0:
 					continue
+
 				var other_track_value = other_animation.track_get_key_value(other_track_index, 0)
 
 				if other_animation.track_get_key_count(other_track_index) > 1:
