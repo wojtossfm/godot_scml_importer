@@ -16,7 +16,7 @@ hopefully empower other godot users with the ability to use it.
  * Godot
 	 * 3.1.1 (< 0.8.0)
 	 * 4.0, 4.1, 4.2 (0.9.1, 0.10.0)
-	 * 4.3 (0.9.2, 0.10.0, 0.10.1, 0.10.2)
+	 * 4.3 - 4.6 (1.0.0, 0.9.2, 0.10.0, 0.10.1, 0.10.2)
  * Spriter SCML generator versions
 	 * r11
 
@@ -34,12 +34,18 @@ hopefully empower other godot users with the ability to use it.
  * eventline (not sure what use case these serve - haven't investigated)
  * object types other than bone and the regular object (sprites)
  * all interpolation is currently assumed to be linear - other interpolations aren't supported for values
- * character map support for supporting replacing parts
+ * character map support not extensively tested (sample with expected outcome explanation will be appreciated)
 
 ## Known implementation quirks
  * Bone scale animations will not work as expected due to how the scale handling is implemented in the plugin. Currently not expected to change as not expecting it to be a common concern for users (at least not reported).
 
 # Changelog
+
+### 1.0.0
+
+ * Rename addon directory to match repository/plugin name
+   * Renamed from import_scml to godot_scml_importer
+ * Add github action to build zip archive compatible with layout expected by godot asset store
 
 ### 0.10.2
 
