@@ -1,1 +1,1 @@
-addons/import_scml/README.md
+addons/godot_scml_importer/README.md
