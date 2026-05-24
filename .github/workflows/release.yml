@@ -1,0 +1,28 @@
+name: Upload Release Asset
+
+on:
+  push:
+    tags:
+      - 'v*' # Triggers on tags starting with v (e.g., v1.0.0)
+
+jobs:
+  build:
+    name: Create Release and Upload Asset
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Required to create releases
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Zip Subdirectory
+        run: |
+          cd addons
+          zip -r ../godot_scml_importer-${{ github.ref_name }}.zip godot_scml_importer
+          
+      - name: Create Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          files: godot_scml_importer-${{ github.ref_name }}.zip
+          fail_on_unmatched_files: true

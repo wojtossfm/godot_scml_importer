@@ -1,1 +1,1 @@
-addons/import_scml/LICENSE.md
+addons/godot_scml_importer/LICENSE.md
