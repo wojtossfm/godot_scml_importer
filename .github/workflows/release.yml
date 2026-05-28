@@ -18,7 +18,7 @@ jobs:
 
       - name: Zip Subdirectory
         run: |
-          mkdir build/godot_scml_importer
+          mkdir -p build/godot_scml_importer
           cp -r addons build/godot_scml_importer/
           cd build
           zip -r ../godot_scml_importer-${{ github.ref_name }}.zip godot_scml_importer
