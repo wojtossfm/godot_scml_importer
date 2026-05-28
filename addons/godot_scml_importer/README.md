@@ -41,6 +41,10 @@ hopefully empower other godot users with the ability to use it.
 
 # Changelog
 
+### 1.0.0 -> 1.0.3
+
+ * Further adjust github action to adjust towards now better understood expected layout
+
 ### 1.0.0
 
  * Rename addon directory to match repository/plugin name
