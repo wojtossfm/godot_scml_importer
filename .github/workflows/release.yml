@@ -18,8 +18,12 @@ jobs:
 
       - name: Zip Subdirectory
         run: |
-          cd addons
+          mkdir build/godot_scml_importer
+          cp -r addons build/godot_scml_importer/
+          cd build
           zip -r ../godot_scml_importer-${{ github.ref_name }}.zip godot_scml_importer
+          cd ..
+          rm -rf build
           
       - name: Create Release and Upload Asset
         uses: softprops/action-gh-release@v2
