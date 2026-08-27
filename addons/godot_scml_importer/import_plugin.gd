@@ -1084,7 +1084,7 @@ func _process_path(path: String, options: Dictionary):
 		entity.apply_rest_pose()
 
 
-func _export_path(path: String):
+func _export_path(path: String) -> Error:
 	var scene = PackedScene.new()
 	var result = scene.pack(_imported)
 	if result == OK:
@@ -1092,6 +1092,7 @@ func _export_path(path: String):
 		if result == OK:
 			_imported.queue_free()
 			_imported = null
+	return result
 
 func _get_importer_name():
 	return "importer.scml"
@@ -1177,4 +1178,4 @@ func _get_import_order():
 
 func _import(source_file: String, save_path: String, options: Dictionary, platform_variants: Array, gen_files: Array):
 	_process_path(source_file, options)
-	_export_path(save_path)
+	return _export_path(save_path)

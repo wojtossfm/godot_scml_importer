@@ -41,6 +41,10 @@ hopefully empower other godot users with the ability to use it.
 
 # Changelog
 
+### 1.0.4 -> 1.0.5
+
+ * Adjust _import to correctly return an Error value as expected
+
 ### 1.0.0 -> 1.0.4
 
  * Further adjust github action to adjust towards now better understood expected layout
